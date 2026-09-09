@@ -5,12 +5,12 @@ using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(VoxelRaycaster))]
 [RequireComponent(typeof(BlockPlacementPreview))]
+[RequireComponent(typeof(BlockPlacementService))]
 public class BlockPlacer : MonoBehaviour
 {
-    [Header("Block")]
+    [Header("Player Build State")]
     [SerializeField]
-    private BlockType blockType =
-        BlockType.Dirt;
+    private PlayerBuildState buildState;
 
     [Header("Build Line")]
     [SerializeField]
@@ -20,11 +20,19 @@ public class BlockPlacer : MonoBehaviour
     private float placementInterval = 0.05f;
 
     private VoxelRaycaster voxelRaycaster;
+
     private BlockPlacementPreview preview;
+
+    private BlockPlacementService
+        placementService;
 
     private bool isPlanning;
 
     private Vector3Int startVoxel;
+
+    private BlockType plannedBlockType;
+
+    private VoxelColor plannedColor;
 
     private readonly List<Vector3Int>
         plannedBlocks =
@@ -37,11 +45,23 @@ public class BlockPlacer : MonoBehaviour
 
         preview =
             GetComponent<BlockPlacementPreview>();
+
+        placementService =
+            GetComponent<BlockPlacementService>();
+
+        if (buildState == null)
+        {
+            buildState =
+                GetComponent<PlayerBuildState>();
+        }
     }
 
     private void Update()
     {
         if (Mouse.current == null)
+            return;
+
+        if (buildState == null)
             return;
 
         if (Mouse.current.rightButton
@@ -74,7 +94,14 @@ public class BlockPlacer : MonoBehaviour
             return;
         }
 
-        startVoxel = adjacentVoxel;
+        startVoxel =
+            adjacentVoxel;
+
+        plannedBlockType =
+            buildState.SelectedBlockType;
+
+        plannedColor =
+            buildState.SelectedColor;
 
         isPlanning = true;
 
@@ -112,11 +139,8 @@ public class BlockPlacer : MonoBehaviour
 
         foreach (Vector3Int voxel in line)
         {
-            if (!voxelRaycaster.World
-                .IsBlockSolid(
-                    voxel.x,
-                    voxel.y,
-                    voxel.z))
+            if (placementService
+                .CanPlaceBlock(voxel))
             {
                 plannedBlocks.Add(
                     voxel
@@ -126,7 +150,7 @@ public class BlockPlacer : MonoBehaviour
 
         preview.Show(
             plannedBlocks,
-            voxelRaycaster.World
+            placementService.World
         );
     }
 
@@ -148,29 +172,26 @@ public class BlockPlacer : MonoBehaviour
 
         StartCoroutine(
             PlaceBlocksSequentially(
-                blocksToPlace
+                blocksToPlace,
+                plannedBlockType,
+                plannedColor
             )
         );
     }
 
-    private IEnumerator PlaceBlocksSequentially(
-        List<Vector3Int> blocks)
+    private IEnumerator
+        PlaceBlocksSequentially(
+            List<Vector3Int> blocks,
+            BlockType blockType,
+            VoxelColor color)
     {
         foreach (Vector3Int voxel in blocks)
         {
-            if (!voxelRaycaster.World
-                .IsBlockSolid(
-                    voxel.x,
-                    voxel.y,
-                    voxel.z))
-            {
-                voxelRaycaster.World.SetBlock(
-                    voxel.x,
-                    voxel.y,
-                    voxel.z,
-                    new Block(blockType)
-                );
-            }
+            placementService.TryPlaceBlock(
+                voxel,
+                blockType,
+                color
+            );
 
             if (placementInterval > 0f)
             {

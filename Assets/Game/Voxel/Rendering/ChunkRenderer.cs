@@ -13,30 +13,54 @@ public class ChunkRenderer : MonoBehaviour
 
     private void Awake()
     {
-        meshFilter = GetComponent<MeshFilter>();
-        meshCollider = GetComponent<MeshCollider>();
+        meshFilter =
+            GetComponent<MeshFilter>();
 
-        chunkMesh = new Mesh
-        {
-            name = "Voxel Chunk Mesh",
-            indexFormat = IndexFormat.UInt32
-        };
+        meshCollider =
+            GetComponent<MeshCollider>();
 
-        meshFilter.sharedMesh = chunkMesh;
+        chunkMesh =
+            new Mesh
+            {
+                name = "Voxel Chunk Mesh",
+                indexFormat =
+                    IndexFormat.UInt32
+            };
+
+        meshFilter.sharedMesh =
+            chunkMesh;
     }
 
-    public void ApplyMesh(MeshData meshData)
+    public void ApplyMesh(
+        MeshData meshData)
     {
         chunkMesh.Clear();
 
-        chunkMesh.SetVertices(meshData.Vertices);
-        chunkMesh.SetTriangles(meshData.Triangles, 0);
-        chunkMesh.SetUVs(0, meshData.UVs);
+        chunkMesh.SetVertices(
+            meshData.Vertices
+        );
+
+        chunkMesh.SetTriangles(
+            meshData.Triangles,
+            0
+        );
+
+        chunkMesh.SetUVs(
+            0,
+            meshData.UVs
+        );
+
+        chunkMesh.SetColors(
+            meshData.Colors
+        );
 
         chunkMesh.RecalculateNormals();
         chunkMesh.RecalculateBounds();
 
-        meshCollider.sharedMesh = null;
-        meshCollider.sharedMesh = chunkMesh;
+        meshCollider.sharedMesh =
+            null;
+
+        meshCollider.sharedMesh =
+            chunkMesh;
     }
 }

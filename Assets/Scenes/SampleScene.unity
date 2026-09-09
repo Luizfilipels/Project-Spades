@@ -447,6 +447,8 @@ GameObject:
   - component: {fileID: 1645559974}
   - component: {fileID: 1645559973}
   - component: {fileID: 1645559972}
+  - component: {fileID: 1645559976}
+  - component: {fileID: 1645559975}
   m_Layer: 0
   m_Name: VoxelInteraction
   m_TagString: Untagged
@@ -512,7 +514,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f2f346605714af369381db2020a1f4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BlockPlacer
-  blockType: 2
+  buildState: {fileID: 1645559976}
   maxBlocksPerLine: 8
   placementInterval: 0.05
 --- !u!114 &1645559972
@@ -584,6 +586,35 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1645559967}
   m_Mesh: {fileID: 0}
+--- !u!114 &1645559975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1645559967}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9a1c8702775ea6b78973621af1f1f0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BlockPlacementService
+  world: {fileID: 2073104209}
+--- !u!114 &1645559976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1645559967}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ab9b3b485f7f5576b63b7030cd1ef91, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerBuildState
+  selectedBlockType: 3
+  red: 65
+  green: 108
+  blue: 113
 --- !u!1 &2073104208
 GameObject:
   m_ObjectHideFlags: 0
@@ -615,7 +646,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VoxelWorld
   chunksX: 8
   chunksZ: 8
-  voxelMaterial: {fileID: 2100000, guid: 91542f6bcbb1e8763aab4448d2810bee, type: 2}
+  voxelMaterial: {fileID: 2100000, guid: 1c87b6aed116c12b5b5347cb335e76df, type: 2}
 --- !u!4 &2073104210
 Transform:
   m_ObjectHideFlags: 0

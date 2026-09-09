@@ -46,6 +46,7 @@ public static class ChunkMeshBuilder
                         world,
                         meshData,
                         chunkCoordinates,
+                        block,
                         x,
                         y,
                         z
@@ -61,19 +62,20 @@ public static class ChunkMeshBuilder
         VoxelWorld world,
         MeshData meshData,
         Vector2Int chunkCoordinates,
+        Block block,
         int localX,
         int localY,
         int localZ)
     {
         int worldX =
-            chunkCoordinates.x *
-            ChunkData.SizeX +
-            localX;
+            chunkCoordinates.x
+            * ChunkData.SizeX
+            + localX;
 
         int worldZ =
-            chunkCoordinates.y *
-            ChunkData.SizeZ +
-            localZ;
+            chunkCoordinates.y
+            * ChunkData.SizeZ
+            + localZ;
 
         for (int face = 0;
              face < NeighborDirections.Length;
@@ -105,7 +107,8 @@ public static class ChunkMeshBuilder
                     localX,
                     localY,
                     localZ,
-                    face
+                    face,
+                    block.Color
                 );
             }
         }
@@ -116,7 +119,8 @@ public static class ChunkMeshBuilder
         int x,
         int y,
         int z,
-        int face)
+        int face,
+        VoxelColor voxelColor)
     {
         int startVertex =
             meshData.Vertices.Count;
@@ -212,6 +216,19 @@ public static class ChunkMeshBuilder
         meshData.UVs.Add(
             new Vector2(1, 0)
         );
+
+        Color32 color =
+            new Color32(
+                voxelColor.R,
+                voxelColor.G,
+                voxelColor.B,
+                voxelColor.A
+            );
+
+        meshData.Colors.Add(color);
+        meshData.Colors.Add(color);
+        meshData.Colors.Add(color);
+        meshData.Colors.Add(color);
     }
 
     private static void AddTopFace(

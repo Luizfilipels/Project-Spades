@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,11 +15,21 @@ public class VoxelWorld : MonoBehaviour
     [SerializeField]
     private Material voxelMaterial;
 
-    private readonly Dictionary<Vector2Int, Chunk> chunks =
-        new Dictionary<Vector2Int, Chunk>();
+    private int worldSizeX;
+    private int worldSizeY;
+    private int worldSizeZ;
 
-    private readonly HashSet<Vector2Int> dirtyChunks =
-        new HashSet<Vector2Int>();
+    private readonly Dictionary<Vector2Int, Chunk>
+        chunks =
+            new Dictionary<Vector2Int, Chunk>();
+
+    private readonly HashSet<Vector2Int>
+        dirtyChunks =
+            new HashSet<Vector2Int>();
+
+    public int SizeX => worldSizeX;
+    public int SizeY => worldSizeY;
+    public int SizeZ => worldSizeZ;
 
     private void Start()
     {
@@ -32,24 +43,46 @@ public class VoxelWorld : MonoBehaviour
 
     private void GenerateWorld()
     {
-        CreateAllChunks();
+        worldSizeX =
+            chunksX * ChunkData.SizeX;
+
+        worldSizeY =
+            ChunkData.SizeY;
+
+        worldSizeZ =
+            chunksZ * ChunkData.SizeZ;
+
+        CreateAllChunks(
+            true
+        );
+
         BuildAllChunkMeshes();
     }
 
-    private void CreateAllChunks()
+    private void CreateAllChunks(
+        bool generateTerrain)
     {
-        for (int x = 0; x < chunksX; x++)
+        for (int x = 0;
+             x < chunksX;
+             x++)
         {
-            for (int z = 0; z < chunksZ; z++)
+            for (int z = 0;
+                 z < chunksZ;
+                 z++)
             {
-                CreateChunk(x, z);
+                CreateChunk(
+                    x,
+                    z,
+                    generateTerrain
+                );
             }
         }
     }
 
     private void BuildAllChunkMeshes()
     {
-        foreach (Chunk chunk in chunks.Values)
+        foreach (Chunk chunk
+                 in chunks.Values)
         {
             chunk.RebuildMesh();
         }
@@ -57,7 +90,8 @@ public class VoxelWorld : MonoBehaviour
 
     private void CreateChunk(
         int chunkX,
-        int chunkZ)
+        int chunkZ,
+        bool generateTerrain)
     {
         GameObject chunkObject =
             new GameObject(
@@ -71,16 +105,21 @@ public class VoxelWorld : MonoBehaviour
 
         chunkObject.transform.localPosition =
             new Vector3(
-                chunkX * ChunkData.SizeX,
+                chunkX *
+                ChunkData.SizeX,
+
                 0,
-                chunkZ * ChunkData.SizeZ
+
+                chunkZ *
+                ChunkData.SizeZ
             );
 
         Chunk chunk =
             chunkObject.AddComponent<Chunk>();
 
         MeshRenderer meshRenderer =
-            chunkObject.GetComponent<MeshRenderer>();
+            chunkObject.GetComponent<
+                MeshRenderer>();
 
         meshRenderer.sharedMaterial =
             voxelMaterial;
@@ -99,7 +138,8 @@ public class VoxelWorld : MonoBehaviour
         chunk.Initialize(
             this,
             chunkX,
-            chunkZ
+            chunkZ,
+            generateTerrain
         );
     }
 
@@ -116,7 +156,9 @@ public class VoxelWorld : MonoBehaviour
                 out int localX,
                 out int localZ))
         {
-            return new Block(BlockType.Air);
+            return new Block(
+                BlockType.Air
+            );
         }
 
         return chunk.Data.GetBlock(
@@ -187,40 +229,219 @@ public class VoxelWorld : MonoBehaviour
             worldX,
             worldY,
             worldZ,
-            new Block(BlockType.Air)
+            new Block(
+                BlockType.Air
+            )
         );
     }
 
-    private bool TryGetChunkAndLocalCoordinates(
+    public VoxelMapData CaptureMapData()
+    {
+        if (worldSizeX <= 0 ||
+            worldSizeY <= 0 ||
+            worldSizeZ <= 0)
+        {
+            throw new InvalidOperationException(
+                "O mundo ainda não foi inicializado."
+            );
+        }
+
+        VoxelMapData map =
+            new VoxelMapData(
+                worldSizeX,
+                worldSizeY,
+                worldSizeZ
+            );
+
+        for (int z = 0;
+             z < worldSizeZ;
+             z++)
+        {
+            for (int x = 0;
+                 x < worldSizeX;
+                 x++)
+            {
+                for (int y = 0;
+                     y < worldSizeY;
+                     y++)
+                {
+                    map.SetBlock(
+                        x,
+                        y,
+                        z,
+                        GetBlock(
+                            x,
+                            y,
+                            z
+                        )
+                    );
+                }
+            }
+        }
+
+        return map;
+    }
+
+    public void LoadMapData(
+        VoxelMapData map)
+    {
+        if (map == null)
+        {
+            throw new ArgumentNullException(
+                nameof(map)
+            );
+        }
+
+        if (map.SizeY >
+            ChunkData.SizeY)
+        {
+            throw new InvalidOperationException(
+                $"O mapa possui altura {map.SizeY}, " +
+                $"mas a engine atualmente suporta " +
+                $"até {ChunkData.SizeY}."
+            );
+        }
+
+        ClearWorld();
+
+        worldSizeX =
+            map.SizeX;
+
+        worldSizeY =
+            map.SizeY;
+
+        worldSizeZ =
+            map.SizeZ;
+
+        chunksX =
+            Mathf.CeilToInt(
+                worldSizeX /
+                (float)ChunkData.SizeX
+            );
+
+        chunksZ =
+            Mathf.CeilToInt(
+                worldSizeZ /
+                (float)ChunkData.SizeZ
+            );
+
+        CreateAllChunks(
+            false
+        );
+
+        for (int z = 0;
+             z < worldSizeZ;
+             z++)
+        {
+            for (int x = 0;
+                 x < worldSizeX;
+                 x++)
+            {
+                for (int y = 0;
+                     y < worldSizeY;
+                     y++)
+                {
+                    SetBlockDirect(
+                        x,
+                        y,
+                        z,
+                        map.GetBlock(
+                            x,
+                            y,
+                            z
+                        )
+                    );
+                }
+            }
+        }
+
+        BuildAllChunkMeshes();
+    }
+
+    private void SetBlockDirect(
         int worldX,
         int worldY,
         int worldZ,
-        out Chunk chunk,
-        out int localX,
-        out int localZ)
+        Block block)
+    {
+        if (!TryGetChunkAndLocalCoordinates(
+                worldX,
+                worldY,
+                worldZ,
+                out Chunk chunk,
+                out int localX,
+                out int localZ))
+        {
+            return;
+        }
+
+        chunk.Data.SetBlock(
+            localX,
+            worldY,
+            localZ,
+            block
+        );
+    }
+
+    private void ClearWorld()
+    {
+        foreach (Chunk chunk
+                 in chunks.Values)
+        {
+            if (chunk == null)
+                continue;
+
+            chunk.gameObject.SetActive(
+                false
+            );
+
+            Destroy(
+                chunk.gameObject
+            );
+        }
+
+        chunks.Clear();
+        dirtyChunks.Clear();
+    }
+
+    private bool
+        TryGetChunkAndLocalCoordinates(
+            int worldX,
+            int worldY,
+            int worldZ,
+            out Chunk chunk,
+            out int localX,
+            out int localZ)
     {
         chunk = null;
-
         localX = 0;
         localZ = 0;
 
-        if (worldY < 0 ||
-            worldY >= ChunkData.SizeY)
+        if (worldX < 0 ||
+            worldX >= worldSizeX)
         {
             return false;
         }
 
-        if (worldX < 0 ||
-            worldZ < 0)
+        if (worldY < 0 ||
+            worldY >= worldSizeY)
+        {
+            return false;
+        }
+
+        if (worldZ < 0 ||
+            worldZ >= worldSizeZ)
         {
             return false;
         }
 
         int chunkX =
-            worldX / ChunkData.SizeX;
+            worldX /
+            ChunkData.SizeX;
 
         int chunkZ =
-            worldZ / ChunkData.SizeZ;
+            worldZ /
+            ChunkData.SizeZ;
 
         Vector2Int coordinates =
             new Vector2Int(
@@ -236,10 +457,12 @@ public class VoxelWorld : MonoBehaviour
         }
 
         localX =
-            worldX % ChunkData.SizeX;
+            worldX %
+            ChunkData.SizeX;
 
         localZ =
-            worldZ % ChunkData.SizeZ;
+            worldZ %
+            ChunkData.SizeZ;
 
         return true;
     }
@@ -309,9 +532,7 @@ public class VoxelWorld : MonoBehaviour
     private void RebuildDirtyChunks()
     {
         if (dirtyChunks.Count == 0)
-        {
             return;
-        }
 
         foreach (
             Vector2Int coordinates

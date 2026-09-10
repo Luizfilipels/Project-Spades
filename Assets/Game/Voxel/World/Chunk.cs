@@ -13,7 +13,8 @@ public class Chunk : MonoBehaviour
 
     private void Awake()
     {
-        chunkRenderer = GetComponent<ChunkRenderer>();
+        chunkRenderer =
+            GetComponent<ChunkRenderer>();
     }
 
     public void Initialize(
@@ -21,26 +22,49 @@ public class Chunk : MonoBehaviour
         int chunkX,
         int chunkZ)
     {
-        world = voxelWorld;
-
-        Coordinates = new Vector2Int(
+        Initialize(
+            voxelWorld,
             chunkX,
-            chunkZ
+            chunkZ,
+            true
         );
+    }
 
-        data = new ChunkData();
+    public void Initialize(
+        VoxelWorld voxelWorld,
+        int chunkX,
+        int chunkZ,
+        bool generateTerrain)
+    {
+        world =
+            voxelWorld;
 
-        WorldGenerator.GenerateTerrain(
-            data,
-            chunkX,
-            chunkZ
-        );
+        Coordinates =
+            new Vector2Int(
+                chunkX,
+                chunkZ
+            );
+
+        data =
+            new ChunkData();
+
+        if (generateTerrain)
+        {
+            WorldGenerator.GenerateTerrain(
+                data,
+                chunkX,
+                chunkZ
+            );
+        }
     }
 
     public void RebuildMesh()
     {
-        if (data == null || world == null)
+        if (data == null ||
+            world == null)
+        {
             return;
+        }
 
         MeshData meshData =
             ChunkMeshBuilder.Build(
@@ -49,6 +73,8 @@ public class Chunk : MonoBehaviour
                 Coordinates
             );
 
-        chunkRenderer.ApplyMesh(meshData);
+        chunkRenderer.ApplyMesh(
+            meshData
+        );
     }
 }

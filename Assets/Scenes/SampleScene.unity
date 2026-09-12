@@ -626,6 +626,7 @@ GameObject:
   - component: {fileID: 2073104210}
   - component: {fileID: 2073104209}
   - component: {fileID: 2073104211}
+  - component: {fileID: 2073104212}
   m_Layer: 0
   m_Name: VoxelWorld
   m_TagString: Untagged
@@ -717,6 +718,21 @@ MonoBehaviour:
       y: 40
       z: 118
   enableDebugHotkeys: 1
+--- !u!114 &2073104212
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2073104208}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b988f1842d4ebea51aea0c3e8babcb7b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LegacyMapImporter
+  world: {fileID: 2073104209}
+  vxlFilePath: Bikini Bottom.vxl
+  enableDebugHotkey: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -25,7 +25,7 @@ public static class ChunkMeshBuilder
              x++)
         {
             for (int y = 0;
-                 y < ChunkData.SizeY;
+                 y < chunk.SizeY;
                  y++)
             {
                 for (int z = 0;
@@ -68,14 +68,14 @@ public static class ChunkMeshBuilder
         int localZ)
     {
         int worldX =
-            chunkCoordinates.x
-            * ChunkData.SizeX
-            + localX;
+            chunkCoordinates.x *
+            ChunkData.SizeX +
+            localX;
 
         int worldZ =
-            chunkCoordinates.y
-            * ChunkData.SizeZ
-            + localZ;
+            chunkCoordinates.y *
+            ChunkData.SizeZ +
+            localZ;
 
         for (int face = 0;
              face < NeighborDirections.Length;
@@ -85,13 +85,16 @@ public static class ChunkMeshBuilder
                 NeighborDirections[face];
 
             int neighborWorldX =
-                worldX + direction.x;
+                worldX +
+                direction.x;
 
             int neighborWorldY =
-                localY + direction.y;
+                localY +
+                direction.y;
 
             int neighborWorldZ =
-                worldZ + direction.z;
+                worldZ +
+                direction.z;
 
             bool neighborIsSolid =
                 world.IsBlockSolid(

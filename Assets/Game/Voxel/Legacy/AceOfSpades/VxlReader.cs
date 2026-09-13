@@ -9,9 +9,6 @@ public static class VxlReader
     private const int Depth =
         VxlCoordinateConverter.MapDepth;
 
-    private const int Height =
-        VxlCoordinateConverter.MapHeight;
-
     private static readonly VoxelColor
         HiddenSolidColor =
             new VoxelColor(
@@ -20,6 +17,13 @@ public static class VxlReader
                 100,
                 255
             );
+
+    private struct VxlInfo
+    {
+        public int Columns;
+        public int MaxReference;
+        public int Height;
+    }
 
     public static VoxelMapData Load(
         string filePath)
@@ -66,14 +70,19 @@ public static class VxlReader
             );
         }
 
+        VxlInfo info =
+            Analyze(data);
+
         VoxelMapData map =
             new VoxelMapData(
                 Width,
-                Height,
+                info.Height,
                 Depth
             );
 
-        InitializeSolidMap(map);
+        InitializeSolidMap(
+            map
+        );
 
         int offset = 0;
 
@@ -92,7 +101,8 @@ public static class VxlReader
                         ref offset,
                         map,
                         aosX,
-                        aosY
+                        aosY,
+                        info.Height
                     );
                 }
                 catch (Exception exception)
@@ -121,6 +131,146 @@ public static class VxlReader
         return map;
     }
 
+    private static VxlInfo Analyze(
+        byte[] data)
+    {
+        int position = 0;
+        int columns = 0;
+        int maxReference = 0;
+
+        while (position < data.Length)
+        {
+            EnsureAvailable(
+                data,
+                position,
+                4
+            );
+
+            int spanWords =
+                data[position];
+
+            int value1 =
+                data[position + 1];
+
+            int value2 =
+                data[position + 2];
+
+            int value3 =
+                data[position + 3];
+
+            maxReference =
+                Math.Max(
+                    maxReference,
+                    Math.Max(
+                        value1,
+                        Math.Max(
+                            value2,
+                            value3
+                        )
+                    )
+                );
+
+            while (spanWords != 0)
+            {
+                position +=
+                    spanWords * 4;
+
+                EnsureAvailable(
+                    data,
+                    position,
+                    4
+                );
+
+                spanWords =
+                    data[position];
+
+                value1 =
+                    data[position + 1];
+
+                value2 =
+                    data[position + 2];
+
+                value3 =
+                    data[position + 3];
+
+                maxReference =
+                    Math.Max(
+                        maxReference,
+                        Math.Max(
+                            value1,
+                            Math.Max(
+                                value2,
+                                value3
+                            )
+                        )
+                    );
+            }
+
+            if (value2 >= value1)
+            {
+                position +=
+                    8 +
+                    4 *
+                    (value2 - value1);
+            }
+            else
+            {
+                position += 4;
+            }
+
+            columns++;
+        }
+
+        if (position != data.Length)
+        {
+            throw new InvalidDataException(
+                "Estrutura VXL inválida."
+            );
+        }
+
+        int expectedColumns =
+            Width * Depth;
+
+        if (columns != expectedColumns)
+        {
+            throw new InvalidDataException(
+                $"Quantidade de colunas VXL " +
+                $"inválida: {columns}. " +
+                $"Esperado: {expectedColumns}."
+            );
+        }
+
+        int height;
+
+        if (maxReference <= 63)
+        {
+            height =
+                VxlCoordinateConverter
+                    .ClassicMapHeight;
+        }
+        else if (maxReference <= 239)
+        {
+            height =
+                VxlCoordinateConverter
+                    .RetailMapHeight;
+        }
+        else
+        {
+            throw new InvalidDataException(
+                $"Altura VXL não reconhecida. " +
+                $"Maior referência: " +
+                $"{maxReference}."
+            );
+        }
+
+        return new VxlInfo
+        {
+            Columns = columns,
+            MaxReference = maxReference,
+            Height = height
+        };
+    }
+
     private static void InitializeSolidMap(
         VoxelMapData map)
     {
@@ -131,15 +281,15 @@ public static class VxlReader
             );
 
         for (int worldZ = 0;
-             worldZ < Depth;
+             worldZ < map.SizeZ;
              worldZ++)
         {
             for (int worldX = 0;
-                 worldX < Width;
+                 worldX < map.SizeX;
                  worldX++)
             {
                 for (int worldY = 0;
-                     worldY < Height;
+                     worldY < map.SizeY;
                      worldY++)
                 {
                     map.SetBlock(
@@ -158,7 +308,8 @@ public static class VxlReader
         ref int offset,
         VoxelMapData map,
         int aosX,
-        int aosY)
+        int aosY,
+        int height)
     {
         int currentZ = 0;
 
@@ -185,26 +336,20 @@ public static class VxlReader
             int topColorCount =
                 GetTopColorCount(
                     topColorStart,
-                    topColorEnd
+                    topColorEnd,
+                    height
                 );
 
-            /*
-             * O reader original do PySpades faz:
-             *
-             * for (i = z; i < top_color_start; i++)
-             *     voxel = air;
-             *
-             * Portanto, se currentZ >= topColorStart,
-             * simplesmente não há um trecho de ar.
-             */
-            if (currentZ < topColorStart)
+            if (currentZ <
+                topColorStart)
             {
                 SetAirRange(
                     map,
                     aosX,
                     aosY,
                     currentZ,
-                    topColorStart
+                    topColorStart,
+                    height
                 );
             }
 
@@ -217,24 +362,18 @@ public static class VxlReader
                 topColorCount * 4
             );
 
-            /*
-             * Top colored run.
-             *
-             * Usamos contagem em vez de:
-             *
-             * z <= topColorEnd
-             *
-             * porque mapas reais podem representar
-             * uma top run vazia com E = S - 1.
-             */
             for (int i = 0;
                  i < topColorCount;
                  i++)
             {
                 int aosZ =
-                    topColorStart + i;
+                    topColorStart +
+                    i;
 
-                ValidateZ(aosZ);
+                ValidateZ(
+                    aosZ,
+                    height
+                );
 
                 VoxelColor color =
                     ReadColor(
@@ -249,6 +388,7 @@ public static class VxlReader
                     aosX,
                     aosY,
                     aosZ,
+                    height,
                     color
                 );
             }
@@ -257,10 +397,6 @@ public static class VxlReader
                 topColorStart +
                 topColorCount;
 
-            /*
-             * N == 0:
-             * último span da coluna.
-             */
             if (numberOfFourByteChunks == 0)
             {
                 int finalSpanSize =
@@ -280,15 +416,9 @@ public static class VxlReader
                 return;
             }
 
-            /*
-             * N inclui:
-             *
-             * 1 header
-             * + top colors
-             * + bottom colors
-             */
             int storedColorCount =
-                numberOfFourByteChunks - 1;
+                numberOfFourByteChunks -
+                1;
 
             int bottomColorCount =
                 storedColorCount -
@@ -297,14 +427,14 @@ public static class VxlReader
             if (bottomColorCount < 0)
             {
                 throw new InvalidDataException(
-                    "Tamanho do span inconsistente. " +
-                    $"N={numberOfFourByteChunks}, " +
-                    $"top={topColorCount}."
+                    "Tamanho do span " +
+                    "inconsistente."
                 );
             }
 
             int spanSize =
-                numberOfFourByteChunks * 4;
+                numberOfFourByteChunks *
+                4;
 
             EnsureAvailable(
                 data,
@@ -322,22 +452,18 @@ public static class VxlReader
                 4
             );
 
-            /*
-             * O byte A do PRÓXIMO span
-             * indica onde começa o próximo
-             * trecho de ar.
-             */
             int nextAirStart =
                 data[
                     nextSpanOffset + 3
                 ];
 
             if (nextAirStart < 0 ||
-                nextAirStart > Height)
+                nextAirStart > height)
             {
                 throw new InvalidDataException(
-                    "Início do próximo trecho " +
-                    $"de ar inválido: {nextAirStart}."
+                    $"Início do próximo trecho " +
+                    $"de ar inválido: " +
+                    $"{nextAirStart}."
                 );
             }
 
@@ -355,11 +481,6 @@ public static class VxlReader
                 );
             }
 
-            /*
-             * Os bottom colors estão armazenados
-             * imediatamente depois dos top colors
-             * do span atual.
-             */
             EnsureAvailable(
                 data,
                 colorOffset,
@@ -371,9 +492,13 @@ public static class VxlReader
                  i++)
             {
                 int aosZ =
-                    bottomColorStart + i;
+                    bottomColorStart +
+                    i;
 
-                ValidateZ(aosZ);
+                ValidateZ(
+                    aosZ,
+                    height
+                );
 
                 VoxelColor color =
                     ReadColor(
@@ -388,14 +513,11 @@ public static class VxlReader
                     aosX,
                     aosY,
                     aosZ,
+                    height,
                     color
                 );
             }
 
-            /*
-             * O reader original termina este span
-             * com z = próximo A.
-             */
             currentZ =
                 nextAirStart;
 
@@ -406,30 +528,40 @@ public static class VxlReader
 
     private static int GetTopColorCount(
         int start,
-        int end)
+        int end,
+        int height)
     {
+        /*
+         * Span vazio padrão:
+         *
+         * clássico pode usar:
+         * S = 64, E = 63
+         *
+         * retail usa:
+         * S = 240, E = 239
+         */
+        if (start == height &&
+            end == height - 1)
+        {
+            return 0;
+        }
+
         if (start < 0 ||
-            start >= Height)
+            start >= height)
         {
             throw new InvalidDataException(
-                $"Início de top colors inválido: {start}."
+                $"Início de top colors " +
+                $"inválido: {start}."
             );
         }
 
-        /*
-         * Caso normal:
-         *
-         * S = 20
-         * E = 24
-         *
-         * 5 voxels.
-         */
         if (end >= start)
         {
-            if (end >= Height)
+            if (end >= height)
             {
                 throw new InvalidDataException(
-                    $"Fim de top colors inválido: {end}."
+                    $"Fim de top colors " +
+                    $"inválido: {end}."
                 );
             }
 
@@ -439,29 +571,11 @@ public static class VxlReader
                 1;
         }
 
-        /*
-         * Caso usado por mapas/encoders
-         * compatíveis com PySpades:
-         *
-         * S = 20
-         * E = 19
-         *
-         * representa uma top colored run
-         * de comprimento ZERO.
-         */
         if (end == start - 1)
         {
             return 0;
         }
 
-        /*
-         * Equivalente byte-wrap de:
-         *
-         * S = 0
-         * E = -1
-         *
-         * armazenado como 255.
-         */
         if (start == 0 &&
             end == 255)
         {
@@ -469,8 +583,8 @@ public static class VxlReader
         }
 
         throw new InvalidDataException(
-            "Intervalo superior de cores inválido. " +
-            $"S={start}, E={end}."
+            "Intervalo superior de cores " +
+            $"inválido. S={start}, E={end}."
         );
     }
 
@@ -479,13 +593,12 @@ public static class VxlReader
         int aosX,
         int aosY,
         int startZ,
-        int endZExclusive)
+        int endZExclusive,
+        int height)
     {
         if (startZ < 0 ||
-            endZExclusive >
-                Height ||
-            startZ >
-                endZExclusive)
+            endZExclusive > height ||
+            startZ > endZExclusive)
         {
             throw new InvalidDataException(
                 "Intervalo de ar fora " +
@@ -499,15 +612,22 @@ public static class VxlReader
         {
             int worldX =
                 VxlCoordinateConverter
-                    .ToWorldX(aosX);
+                    .ToWorldX(
+                        aosX
+                    );
 
             int worldY =
                 VxlCoordinateConverter
-                    .ToWorldY(aosZ);
+                    .ToWorldY(
+                        aosZ,
+                        height
+                    );
 
             int worldZ =
                 VxlCoordinateConverter
-                    .ToWorldZ(aosY);
+                    .ToWorldZ(
+                        aosY
+                    );
 
             map.SetBlock(
                 worldX,
@@ -525,21 +645,32 @@ public static class VxlReader
         int aosX,
         int aosY,
         int aosZ,
+        int height,
         VoxelColor color)
     {
-        ValidateZ(aosZ);
+        ValidateZ(
+            aosZ,
+            height
+        );
 
         int worldX =
             VxlCoordinateConverter
-                .ToWorldX(aosX);
+                .ToWorldX(
+                    aosX
+                );
 
         int worldY =
             VxlCoordinateConverter
-                .ToWorldY(aosZ);
+                .ToWorldY(
+                    aosZ,
+                    height
+                );
 
         int worldZ =
             VxlCoordinateConverter
-                .ToWorldZ(aosY);
+                .ToWorldZ(
+                    aosY
+                );
 
         map.SetBlock(
             worldX,
@@ -562,14 +693,6 @@ public static class VxlReader
             4
         );
 
-        /*
-         * VXL:
-         *
-         * B
-         * G
-         * R
-         * A/shading
-         */
         byte blue =
             data[offset];
 
@@ -579,11 +702,6 @@ public static class VxlReader
         byte red =
             data[offset + 2];
 
-        /*
-         * O quarto byte é shading no
-         * formato clássico. Ainda não vamos
-         * aplicá-lo ao nosso shader.
-         */
         return new VoxelColor(
             red,
             green,
@@ -593,13 +711,16 @@ public static class VxlReader
     }
 
     private static void ValidateZ(
-        int z)
+        int z,
+        int height)
     {
         if (z < 0 ||
-            z >= Height)
+            z >= height)
         {
             throw new InvalidDataException(
-                $"Z fora dos limites do VXL: {z}."
+                $"Z fora dos limites do " +
+                $"VXL: {z}. " +
+                $"Altura: {height}."
             );
         }
     }

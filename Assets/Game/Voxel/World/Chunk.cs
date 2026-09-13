@@ -7,9 +7,14 @@ public class Chunk : MonoBehaviour
     private ChunkRenderer chunkRenderer;
     private VoxelWorld world;
 
-    public Vector2Int Coordinates { get; private set; }
+    public Vector2Int Coordinates
+    {
+        get;
+        private set;
+    }
 
-    public ChunkData Data => data;
+    public ChunkData Data =>
+        data;
 
     private void Awake()
     {
@@ -46,7 +51,9 @@ public class Chunk : MonoBehaviour
             );
 
         data =
-            new ChunkData();
+            new ChunkData(
+                voxelWorld.SizeY
+            );
 
         if (generateTerrain)
         {

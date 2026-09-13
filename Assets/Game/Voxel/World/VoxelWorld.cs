@@ -11,6 +11,9 @@ public class VoxelWorld : MonoBehaviour
     [SerializeField]
     private int chunksZ = 8;
 
+    [SerializeField]
+    private int defaultWorldHeight = 64;
+
     [Header("Rendering")]
     [SerializeField]
     private Material voxelMaterial;
@@ -27,9 +30,14 @@ public class VoxelWorld : MonoBehaviour
         dirtyChunks =
             new HashSet<Vector2Int>();
 
-    public int SizeX => worldSizeX;
-    public int SizeY => worldSizeY;
-    public int SizeZ => worldSizeZ;
+    public int SizeX =>
+        worldSizeX;
+
+    public int SizeY =>
+        worldSizeY;
+
+    public int SizeZ =>
+        worldSizeZ;
 
     private void Start()
     {
@@ -44,13 +52,19 @@ public class VoxelWorld : MonoBehaviour
     private void GenerateWorld()
     {
         worldSizeX =
-            chunksX * ChunkData.SizeX;
+            chunksX *
+            ChunkData.SizeX;
 
         worldSizeY =
-            ChunkData.SizeY;
+            Mathf.Clamp(
+                defaultWorldHeight,
+                1,
+                ChunkData.MaxSizeY
+            );
 
         worldSizeZ =
-            chunksZ * ChunkData.SizeZ;
+            chunksZ *
+            ChunkData.SizeZ;
 
         CreateAllChunks(
             true
@@ -293,12 +307,13 @@ public class VoxelWorld : MonoBehaviour
         }
 
         if (map.SizeY >
-            ChunkData.SizeY)
+            ChunkData.MaxSizeY)
         {
             throw new InvalidOperationException(
-                $"O mapa possui altura {map.SizeY}, " +
-                $"mas a engine atualmente suporta " +
-                $"até {ChunkData.SizeY}."
+                $"O mapa possui altura " +
+                $"{map.SizeY}, mas a engine " +
+                $"atualmente suporta até " +
+                $"{ChunkData.MaxSizeY}."
             );
         }
 
@@ -414,6 +429,7 @@ public class VoxelWorld : MonoBehaviour
             out int localZ)
     {
         chunk = null;
+
         localX = 0;
         localZ = 0;
 

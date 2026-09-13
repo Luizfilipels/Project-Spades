@@ -2,7 +2,9 @@ public static class VxlCoordinateConverter
 {
     public const int MapWidth = 512;
     public const int MapDepth = 512;
-    public const int MapHeight = 64;
+
+    public const int ClassicMapHeight = 64;
+    public const int RetailMapHeight = 240;
 
     public static int ToWorldX(
         int aosX)
@@ -11,11 +13,12 @@ public static class VxlCoordinateConverter
     }
 
     public static int ToWorldY(
-        int aosZ)
+        int aosZ,
+        int mapHeight)
     {
         return
-            (MapHeight - 1)
-            - aosZ;
+            (mapHeight - 1) -
+            aosZ;
     }
 
     public static int ToWorldZ(
@@ -37,10 +40,11 @@ public static class VxlCoordinateConverter
     }
 
     public static int ToAosZ(
-        int worldY)
+        int worldY,
+        int mapHeight)
     {
         return
-            (MapHeight - 1)
-            - worldY;
+            (mapHeight - 1) -
+            worldY;
     }
 }

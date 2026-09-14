@@ -6,8 +6,7 @@ using UnityEngine.InputSystem;
 using Stopwatch =
     System.Diagnostics.Stopwatch;
 
-public class LegacyMapImporter :
-    MonoBehaviour
+public class LegacyMapImporter : MonoBehaviour
 {
     [Header("World")]
     [SerializeField]
@@ -19,8 +18,7 @@ public class LegacyMapImporter :
 
     [Header("Debug Hotkeys")]
     [SerializeField]
-    private bool enableDebugHotkeys =
-        true;
+    private bool enableDebugHotkeys = true;
 
     private List<LegacyMapEntry> maps =
         new List<LegacyMapEntry>();
@@ -68,6 +66,10 @@ public class LegacyMapImporter :
         }
     }
 
+    // ============================================================
+    // MAP CATALOG
+    // ============================================================
+
     public void RefreshMapList()
     {
         maps =
@@ -79,8 +81,7 @@ public class LegacyMapImporter :
 
             Debug.LogWarning(
                 "Nenhum mapa VXL encontrado em:\n" +
-                LegacyMapCatalog
-                    .GetMapsDirectory()
+                LegacyMapCatalog.GetMapsDirectory()
             );
 
             return;
@@ -94,15 +95,17 @@ public class LegacyMapImporter :
             );
 
         Debug.Log(
-            $"Mapas VXL encontrados: " +
-            $"{maps.Count}"
+            "Mapas VXL encontrados: " +
+            maps.Count
         );
     }
 
     public void SelectNextMap()
     {
         if (!EnsureMapsAvailable())
+        {
             return;
+        }
 
         selectedMapIndex++;
 
@@ -117,7 +120,9 @@ public class LegacyMapImporter :
     public void SelectPreviousMap()
     {
         if (!EnsureMapsAvailable())
+        {
             return;
+        }
 
         selectedMapIndex--;
 
@@ -129,6 +134,10 @@ public class LegacyMapImporter :
 
         LogSelectedMap();
     }
+
+    // ============================================================
+    // IMPORT
+    // ============================================================
 
     public bool ImportSelectedMap()
     {
@@ -164,13 +173,22 @@ public class LegacyMapImporter :
         {
             Debug.Log(
                 "================================\n" +
-                $"IMPORTANDO: {selectedMap.Name}\n" +
+                "IMPORTANDO: " +
+                selectedMap.Name +
+                "\n" +
                 "================================"
             );
 
             LogSidecars(
                 selectedMap
             );
+
+            if (selectedMap.HasTxt)
+            {
+                TryReadPySnipTxt(
+                    selectedMap
+                );
+            }
 
             if (selectedMap.HasUgc)
             {
@@ -193,11 +211,12 @@ public class LegacyMapImporter :
                 );
 
             Debug.Log(
-                "VXL decodificado. " +
-                $"Dimensões: " +
-                $"{mapData.SizeX} x " +
-                $"{mapData.SizeY} x " +
-                $"{mapData.SizeZ}"
+                "VXL decodificado. Dimensões: " +
+                mapData.SizeX +
+                " x " +
+                mapData.SizeY +
+                " x " +
+                mapData.SizeZ
             );
 
             world.LoadMapData(
@@ -207,10 +226,13 @@ public class LegacyMapImporter :
             stopwatch.Stop();
 
             Debug.Log(
-                $"Mapa \"{selectedMap.Name}\" " +
-                "importado com sucesso.\n" +
-                $"Tempo total: " +
-                $"{stopwatch.Elapsed.TotalSeconds:F2}s"
+                "Mapa \"" +
+                selectedMap.Name +
+                "\" importado com sucesso.\n" +
+                "Tempo total: " +
+                stopwatch.Elapsed.TotalSeconds
+                    .ToString("F2") +
+                "s"
             );
 
             return true;
@@ -218,14 +240,236 @@ public class LegacyMapImporter :
         catch (Exception exception)
         {
             Debug.LogError(
-                $"Erro ao importar " +
-                $"\"{selectedMap.Name}\":\n" +
+                "Erro ao importar \"" +
+                selectedMap.Name +
+                "\":\n" +
                 exception
             );
 
             return false;
         }
     }
+
+    // ============================================================
+    // PYSNIP
+    // ============================================================
+
+    private void TryReadPySnipTxt(
+        LegacyMapEntry map)
+    {
+        try
+        {
+            PySnipMapScriptData data =
+                PySnipMapScriptImporter.Load(
+                    map.TxtPath
+                );
+
+            Debug.Log(
+                "PySnip TXT carregado:\n" +
+                "Nome: " +
+                data.Name +
+                "\n" +
+                "Versão: " +
+                data.Version +
+                "\n" +
+                "Autor: " +
+                data.Author +
+                "\n" +
+                "Descrição: " +
+                data.Description +
+                "\n" +
+                "Extensions: " +
+                data.Extensions.Count
+            );
+
+            LogPySnipSpawnPolicy(
+                data
+            );
+
+            LogPySnipEntityPolicy(
+                data
+            );
+
+            LogPySnipCoordinates(
+                data
+            );
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                "O VXL será carregado, mas o " +
+                "TXT PySnip não pôde ser " +
+                "interpretado:\n" +
+                exception
+            );
+        }
+    }
+
+    private static void LogPySnipSpawnPolicy(
+        PySnipMapScriptData data)
+    {
+        string bluePolicy =
+            GetSpawnPolicyText(
+                data.HasCustomBlueSpawns,
+                data.BlueSpawns.Count
+            );
+
+        string greenPolicy =
+            GetSpawnPolicyText(
+                data.HasCustomGreenSpawns,
+                data.GreenSpawns.Count
+            );
+
+        Debug.Log(
+            "PySnip Spawn Policy:\n" +
+            "Blue: " +
+            bluePolicy +
+            "\n" +
+            "Green: " +
+            greenPolicy
+        );
+    }
+
+    private static void LogPySnipEntityPolicy(
+        PySnipMapScriptData data)
+    {
+        string blueBasePolicy =
+            GetEntityPolicyText(
+                data.HasBlueBase
+            );
+
+        string greenBasePolicy =
+            GetEntityPolicyText(
+                data.HasGreenBase
+            );
+
+        string blueFlagPolicy =
+            GetEntityPolicyText(
+                data.HasBlueFlag
+            );
+
+        string greenFlagPolicy =
+            GetEntityPolicyText(
+                data.HasGreenFlag
+            );
+
+        Debug.Log(
+            "PySnip Entity Policy:\n" +
+            "Blue Base: " +
+            blueBasePolicy +
+            "\n" +
+            "Green Base: " +
+            greenBasePolicy +
+            "\n" +
+            "Blue Flag: " +
+            blueFlagPolicy +
+            "\n" +
+            "Green Flag: " +
+            greenFlagPolicy
+        );
+    }
+
+    private static string GetSpawnPolicyText(
+        bool hasCustomSpawns,
+        int count)
+    {
+        if (hasCustomSpawns)
+        {
+            return
+                "Map Defined (" +
+                count +
+                ")";
+        }
+
+        return "Server Default";
+    }
+
+    private static string GetEntityPolicyText(
+        bool mapDefined)
+    {
+        if (mapDefined)
+        {
+            return "Map Defined";
+        }
+
+        return "Server Default";
+    }
+
+    private static void LogPySnipCoordinates(
+        PySnipMapScriptData data)
+    {
+        if (data.HasBlueBase)
+        {
+            Debug.Log(
+                "Blue Base -> " +
+                FormatCoordinate(
+                    data.BlueBase
+                )
+            );
+        }
+
+        if (data.HasGreenBase)
+        {
+            Debug.Log(
+                "Green Base -> " +
+                FormatCoordinate(
+                    data.GreenBase
+                )
+            );
+        }
+
+        if (data.HasBlueFlag)
+        {
+            Debug.Log(
+                "Blue Flag -> " +
+                FormatCoordinate(
+                    data.BlueFlag
+                )
+            );
+        }
+
+        if (data.HasGreenFlag)
+        {
+            Debug.Log(
+                "Green Flag -> " +
+                FormatCoordinate(
+                    data.GreenFlag
+                )
+            );
+        }
+
+        for (int i = 0;
+             i < data.BlueSpawns.Count;
+             i++)
+        {
+            Debug.Log(
+                "Blue Spawn #" +
+                (i + 1) +
+                " -> " +
+                FormatCoordinate(
+                    data.BlueSpawns[i]
+                )
+            );
+        }
+
+        for (int i = 0;
+             i < data.GreenSpawns.Count;
+             i++)
+        {
+            Debug.Log(
+                "Green Spawn #" +
+                (i + 1) +
+                " -> " +
+                FormatCoordinate(
+                    data.GreenSpawns[i]
+                )
+            );
+        }
+    }
+
+    // ============================================================
+    // JAGEX
+    // ============================================================
 
     private void TryReadJagexUgc(
         LegacyMapEntry map)
@@ -242,29 +486,48 @@ public class LegacyMapImporter :
                     ugc
                 );
 
-            string modeText =
-                modes.Length > 0
-                    ? string.Join(", ", modes)
-                    : "nenhum";
+            string modeText;
+
+            if (modes.Length > 0)
+            {
+                modeText =
+                    string.Join(
+                        ", ",
+                        modes
+                    );
+            }
+            else
+            {
+                modeText =
+                    "nenhum";
+            }
 
             Debug.Log(
                 "Jagex UGC carregado:\n" +
-                $"Título: {ugc.title}\n" +
-                $"Autor: {ugc.author}\n" +
-                $"Descrição: {ugc.description}\n" +
-                $"Baseplate: {ugc.baseplate}\n" +
-                $"Skybox: {ugc.skybox_name}\n" +
-                $"Entidades: " +
-                $"{ugc.ugc_entities.Length}\n" +
-                $"Modos: {modeText}"
+                "Título: " +
+                ugc.title +
+                "\n" +
+                "Autor: " +
+                ugc.author +
+                "\n" +
+                "Descrição: " +
+                ugc.description +
+                "\n" +
+                "Baseplate: " +
+                ugc.baseplate +
+                "\n" +
+                "Skybox: " +
+                ugc.skybox_name +
+                "\n" +
+                "Entidades: " +
+                ugc.ugc_entities.Length +
+                "\n" +
+                "Modos: " +
+                modeText
             );
         }
         catch (Exception exception)
         {
-            /*
-             * Um sidecar UGC inválido não deve
-             * impedir o terreno VXL de abrir.
-             */
             Debug.LogWarning(
                 "O VXL será carregado, mas o " +
                 "arquivo UGC não pôde ser lido:\n" +
@@ -272,6 +535,10 @@ public class LegacyMapImporter :
             );
         }
     }
+
+    // ============================================================
+    // GENERAL LOGGING
+    // ============================================================
 
     private void LogSelectedMap()
     {
@@ -288,11 +555,14 @@ public class LegacyMapImporter :
             maps[selectedMapIndex];
 
         Debug.Log(
-            $"Mapa selecionado: " +
-            $"[{selectedMapIndex + 1}/" +
-            $"{maps.Count}] " +
-            $"{map.Name} " +
-            $"{GetSidecarDescription(map)}"
+            "Mapa selecionado: [" +
+            (selectedMapIndex + 1) +
+            "/" +
+            maps.Count +
+            "] " +
+            map.Name +
+            " " +
+            GetSidecarDescription(map)
         );
     }
 
@@ -319,15 +589,14 @@ public class LegacyMapImporter :
             !map.HasUgc)
         {
             Debug.Log(
-                "Nenhum sidecar de metadados " +
-                "foi encontrado."
+                "Nenhum sidecar de " +
+                "metadados encontrado."
             );
         }
     }
 
-    private static string
-        GetSidecarDescription(
-            LegacyMapEntry map)
+    private static string GetSidecarDescription(
+        LegacyMapEntry map)
     {
         if (map.HasTxt &&
             map.HasUgc)
@@ -358,5 +627,18 @@ public class LegacyMapImporter :
         RefreshMapList();
 
         return maps.Count > 0;
+    }
+
+    private static string FormatCoordinate(
+        MapCoordinate coordinate)
+    {
+        return
+            "(" +
+            coordinate.x +
+            ", " +
+            coordinate.y +
+            ", " +
+            coordinate.z +
+            ")";
     }
 }

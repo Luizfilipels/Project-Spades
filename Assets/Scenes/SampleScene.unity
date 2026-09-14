@@ -678,7 +678,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelMapManager
   world: {fileID: 2073104209}
-  mapFolderName: Bikini Bottom
+  mapFolderName: TestMap
   mapName: Test Map
   author: Project Spades
   description: Project Spades test map.
@@ -724,6 +724,8 @@ MonoBehaviour:
       x: 112
       y: 40
       z: 118
+  modes: []
+  commonEntities: []
   enableDebugHotkeys: 1
 --- !u!114 &2073104212
 MonoBehaviour:

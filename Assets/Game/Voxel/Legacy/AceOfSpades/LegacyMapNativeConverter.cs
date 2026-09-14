@@ -14,85 +14,47 @@ public static class LegacyMapNativeConverter
     private const string MetadataFileName =
         "map.json";
 
+    // ============================================================
+    // PYSNIP
+    // ============================================================
+
     public static string ConvertPySnipMap(
         LegacyMapEntry source)
     {
-        if (source == null)
-        {
-            throw new ArgumentNullException(
-                nameof(source)
-            );
-        }
+        ValidateSourceVxl(
+            source
+        );
 
-        if (string.IsNullOrWhiteSpace(
-                source.VxlPath) ||
-            !File.Exists(source.VxlPath))
-        {
-            throw new FileNotFoundException(
-                "Arquivo VXL não encontrado.",
-                source.VxlPath
-            );
-        }
-
-        /*
-         * Importante:
-         *
-         * um mapa que possui .ugc pertence ao
-         * pipeline Jagex/Retail.
-         *
-         * Alguns mapas Jagex também possuem
-         * arquivos .txt, mas esses arquivos não
-         * devem automaticamente ser tratados
-         * como scripts PySnip.
-         */
         if (source.HasUgc)
         {
             throw new InvalidOperationException(
-                "Este mapa possui arquivo UGC e " +
-                "foi identificado como Jagex/Retail. " +
-                "A conversão Jagex será implementada " +
-                "no próximo estágio."
+                "O mapa possui UGC e foi " +
+                "identificado como Jagex/Retail."
             );
         }
 
         if (!source.HasTxt)
         {
             throw new InvalidOperationException(
-                "Este mapa não possui TXT PySnip. " +
-                "A conversão PySnip requer VXL + TXT."
+                "Conversão PySnip requer " +
+                "VXL + TXT."
             );
         }
-
-        // ========================================================
-        // 1. LER O SCRIPT PYSNIP
-        // ========================================================
 
         PySnipMapScriptData scriptData =
             PySnipMapScriptImporter.Load(
                 source.TxtPath
             );
 
-        // ========================================================
-        // 2. LER O TERRENO VXL
-        // ========================================================
-
         VoxelMapData terrain =
             VxlReader.Load(
                 source.VxlPath
             );
 
-        // ========================================================
-        // 3. CONVERTER GAMEPLAY
-        // ========================================================
-
         MapGameplayMetadata gameplay =
             PySnipGameplayConverter.Convert(
                 scriptData
             );
-
-        // ========================================================
-        // 4. DETERMINAR NOME DO MAPA
-        // ========================================================
 
         string mapName =
             scriptData.Name;
@@ -102,6 +64,129 @@ public static class LegacyMapNativeConverter
         {
             mapName =
                 source.Name;
+        }
+
+        return WriteNativeMap(
+            mapName,
+            scriptData.Author,
+            scriptData.Description,
+            terrain,
+            gameplay
+        );
+    }
+
+    // ============================================================
+    // JAGEX / RETAIL
+    // ============================================================
+
+    public static string ConvertJagexMap(
+        LegacyMapEntry source)
+    {
+        ValidateSourceVxl(
+            source
+        );
+
+        if (!source.HasUgc)
+        {
+            throw new InvalidOperationException(
+                "Conversão Jagex requer " +
+                "VXL + UGC."
+            );
+        }
+
+        // --------------------------------------------------------
+        // 1. UGC
+        // --------------------------------------------------------
+
+        JagexUgcData ugc =
+            JagexUgcImporter.Load(
+                source.UgcPath
+            );
+
+        // --------------------------------------------------------
+        // 2. VXL RETAIL
+        // --------------------------------------------------------
+
+        VoxelMapData terrain =
+            VxlReader.Load(
+                source.VxlPath
+            );
+
+        // --------------------------------------------------------
+        // 3. UGC -> INTERMEDIATE GAMEPLAY
+        // --------------------------------------------------------
+
+        JagexGameplayData jagexGameplay =
+            JagexGameplayConverter.Convert(
+                ugc,
+                source.VxlPath
+            );
+
+        // --------------------------------------------------------
+        // 4. INTERMEDIATE -> NATIVE GAMEPLAY
+        // --------------------------------------------------------
+
+        MapGameplayMetadata gameplay =
+            JagexNativeGameplayConverter.Convert(
+                jagexGameplay
+            );
+
+        // --------------------------------------------------------
+        // 5. MAP METADATA
+        // --------------------------------------------------------
+
+        string mapName =
+            ugc.title;
+
+        if (string.IsNullOrWhiteSpace(
+                mapName))
+        {
+            mapName =
+                source.Name;
+        }
+
+        string mapAuthor =
+            ugc.author;
+
+        string mapDescription =
+            ugc.description;
+
+        // --------------------------------------------------------
+        // 6. WRITE
+        // --------------------------------------------------------
+
+        return WriteNativeMap(
+            mapName,
+            mapAuthor,
+            mapDescription,
+            terrain,
+            gameplay
+        );
+    }
+
+    // ============================================================
+    // WRITE NATIVE MAP
+    // ============================================================
+
+    private static string WriteNativeMap(
+        string mapName,
+        string author,
+        string description,
+        VoxelMapData terrain,
+        MapGameplayMetadata gameplay)
+    {
+        if (terrain == null)
+        {
+            throw new ArgumentNullException(
+                nameof(terrain)
+            );
+        }
+
+        if (gameplay == null)
+        {
+            throw new ArgumentNullException(
+                nameof(gameplay)
+            );
         }
 
         if (string.IsNullOrWhiteSpace(
@@ -115,10 +200,6 @@ public static class LegacyMapNativeConverter
             SanitizeFolderName(
                 mapName
             );
-
-        // ========================================================
-        // 5. CRIAR DIRETÓRIO NATIVO
-        // ========================================================
 
         string mapsDirectory =
             Path.Combine(
@@ -152,10 +233,6 @@ public static class LegacyMapNativeConverter
                 MetadataFileName
             );
 
-        // ========================================================
-        // 6. DATAS
-        // ========================================================
-
         string nowUtc =
             DateTime.UtcNow.ToString(
                 "o"
@@ -173,10 +250,6 @@ public static class LegacyMapNativeConverter
                 nowUtc;
         }
 
-        // ========================================================
-        // 7. CRIAR METADATA NATIVO
-        // ========================================================
-
         MapMetadata metadata =
             new MapMetadata();
 
@@ -187,10 +260,10 @@ public static class LegacyMapNativeConverter
             mapName;
 
         metadata.author =
-            scriptData.Author;
+            author ?? string.Empty;
 
         metadata.description =
-            scriptData.Description;
+            description ?? string.Empty;
 
         metadata.terrainFile =
             TerrainFileName;
@@ -213,27 +286,15 @@ public static class LegacyMapNativeConverter
         metadata.gameplay =
             gameplay;
 
-        // ========================================================
-        // 8. VALIDAR ANTES DE GRAVAR
-        // ========================================================
-
         ValidateMetadata(
             metadata,
             terrain
         );
 
-        // ========================================================
-        // 9. GRAVAR TERRAIN.VXM
-        // ========================================================
-
         VxmSerializer.Save(
             terrainPath,
             terrain
         );
-
-        // ========================================================
-        // 10. GRAVAR MAP.JSON
-        // ========================================================
 
         string json =
             JsonUtility.ToJson(
@@ -253,6 +314,34 @@ public static class LegacyMapNativeConverter
     // VALIDATION
     // ============================================================
 
+    private static void ValidateSourceVxl(
+        LegacyMapEntry source)
+    {
+        if (source == null)
+        {
+            throw new ArgumentNullException(
+                nameof(source)
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                source.VxlPath))
+        {
+            throw new InvalidOperationException(
+                "Caminho VXL vazio."
+            );
+        }
+
+        if (!File.Exists(
+                source.VxlPath))
+        {
+            throw new FileNotFoundException(
+                "Arquivo VXL não encontrado.",
+                source.VxlPath
+            );
+        }
+    }
+
     private static void ValidateMetadata(
         MapMetadata metadata,
         VoxelMapData terrain)
@@ -264,21 +353,6 @@ public static class LegacyMapNativeConverter
             );
         }
 
-        if (terrain == null)
-        {
-            throw new InvalidDataException(
-                "Terrain nulo."
-            );
-        }
-
-        if (string.IsNullOrWhiteSpace(
-                metadata.name))
-        {
-            throw new InvalidDataException(
-                "Nome do mapa vazio."
-            );
-        }
-
         if (metadata.sizeX !=
                 terrain.SizeX ||
             metadata.sizeY !=
@@ -287,8 +361,8 @@ public static class LegacyMapNativeConverter
                 terrain.SizeZ)
         {
             throw new InvalidDataException(
-                "As dimensões do metadata " +
-                "não correspondem ao terreno."
+                "Dimensões do metadata não " +
+                "correspondem ao terreno."
             );
         }
 
@@ -309,25 +383,50 @@ public static class LegacyMapNativeConverter
             );
         }
 
-        if (gameplay.teams == null)
+        ValidateTeams(
+            gameplay.teams,
+            terrain
+        );
+
+        ValidateModes(
+            gameplay.modes,
+            terrain
+        );
+
+        ValidatePointEntities(
+            gameplay.commonEntities,
+            terrain,
+            "common"
+        );
+    }
+
+    // ============================================================
+    // TEAM VALIDATION
+    // ============================================================
+
+    private static void ValidateTeams(
+        MapTeamMetadata[] teams,
+        VoxelMapData terrain)
+    {
+        if (teams == null)
         {
             throw new InvalidDataException(
                 "Lista de times nula."
             );
         }
 
-        HashSet<string> teamIds =
+        HashSet<string> ids =
             new HashSet<string>(
                 StringComparer.OrdinalIgnoreCase
             );
 
         foreach (MapTeamMetadata team
-                 in gameplay.teams)
+                 in teams)
         {
             if (team == null)
             {
                 throw new InvalidDataException(
-                    "Time nulo encontrado."
+                    "Time nulo."
                 );
             }
 
@@ -339,171 +438,186 @@ public static class LegacyMapNativeConverter
                 );
             }
 
-            if (!teamIds.Add(
+            if (!ids.Add(
                     team.id))
             {
                 throw new InvalidDataException(
-                    "ID de time duplicado: " +
+                    "Time duplicado: " +
                     team.id
                 );
             }
 
-            ValidateSpawnPolicy(
-                team,
-                terrain
-            );
-
-            ValidateBasePolicy(
-                team,
-                terrain
-            );
-
-            ValidateFlagPolicy(
-                team,
-                terrain
-            );
-        }
-    }
-
-    private static void ValidateSpawnPolicy(
-        MapTeamMetadata team,
-        VoxelMapData terrain)
-    {
-        if (team.spawnPolicy ==
-            MapLocationPolicy.MapDefined)
-        {
-            if (team.spawnPoints == null ||
-                team.spawnPoints.Length == 0)
+            if (team.spawnPolicy ==
+                MapLocationPolicy.MapDefined)
             {
-                throw new InvalidDataException(
-                    "O time " +
-                    team.id +
-                    " usa MapDefined para spawn, " +
-                    "mas não possui spawnPoints."
-                );
+                if (team.spawnPoints == null ||
+                    team.spawnPoints.Length == 0)
+                {
+                    throw new InvalidDataException(
+                        "Time " +
+                        team.id +
+                        " usa spawn MapDefined " +
+                        "sem spawnPoints."
+                    );
+                }
+
+                foreach (MapCoordinate spawn
+                         in team.spawnPoints)
+                {
+                    ValidateCoordinate(
+                        spawn,
+                        terrain,
+                        team.id +
+                        " spawn"
+                    );
+                }
             }
 
-            foreach (MapCoordinate coordinate
-                     in team.spawnPoints)
+            if (team.basePolicy ==
+                    MapLocationPolicy.MapDefined &&
+                team.hasBase)
             {
                 ValidateCoordinate(
-                    coordinate,
+                    team.basePosition,
                     terrain,
                     team.id +
-                    " spawn"
+                    " base"
                 );
             }
 
-            return;
+            if (team.flagPolicy ==
+                    MapLocationPolicy.MapDefined &&
+                team.hasFlag)
+            {
+                ValidateCoordinate(
+                    team.flagPosition,
+                    terrain,
+                    team.id +
+                    " flag"
+                );
+            }
         }
-
-        if (team.spawnPolicy ==
-            MapLocationPolicy.ServerDefault)
-        {
-            /*
-             * Nenhuma coordenada é necessária.
-             * O servidor escolherá futuramente.
-             */
-            return;
-        }
-
-        if (team.spawnPolicy ==
-            MapLocationPolicy.Disabled)
-        {
-            return;
-        }
-
-        throw new InvalidDataException(
-            "Spawn policy desconhecida."
-        );
     }
 
-    private static void ValidateBasePolicy(
-        MapTeamMetadata team,
+    // ============================================================
+    // MODE VALIDATION
+    // ============================================================
+
+    private static void ValidateModes(
+        MapGameModeMetadata[] modes,
         VoxelMapData terrain)
     {
-        if (team.basePolicy ==
-            MapLocationPolicy.MapDefined)
+        if (modes == null)
         {
-            if (!team.hasBase)
+            return;
+        }
+
+        HashSet<string> ids =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase
+            );
+
+        foreach (MapGameModeMetadata mode
+                 in modes)
+        {
+            if (mode == null)
             {
                 throw new InvalidDataException(
-                    "O time " +
-                    team.id +
-                    " possui base MapDefined, " +
-                    "mas hasBase está false."
+                    "Modo nulo."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    mode.id))
+            {
+                throw new InvalidDataException(
+                    "Modo sem ID."
+                );
+            }
+
+            if (!ids.Add(
+                    mode.id))
+            {
+                throw new InvalidDataException(
+                    "Modo duplicado: " +
+                    mode.id
+                );
+            }
+
+            ValidateZones(
+                mode.zones,
+                terrain,
+                mode.id
+            );
+
+            ValidatePointEntities(
+                mode.entities,
+                terrain,
+                mode.id
+            );
+        }
+    }
+
+    private static void ValidateZones(
+        MapZoneMetadata[] zones,
+        VoxelMapData terrain,
+        string mode)
+    {
+        if (zones == null)
+        {
+            return;
+        }
+
+        foreach (MapZoneMetadata zone
+                 in zones)
+        {
+            if (zone == null)
+            {
+                throw new InvalidDataException(
+                    "Zona nula no modo " +
+                    mode
                 );
             }
 
             ValidateCoordinate(
-                team.basePosition,
+                zone.center,
                 terrain,
-                team.id +
-                " base"
+                mode +
+                " zone " +
+                zone.sourceItem
             );
-
-            return;
         }
-
-        if (team.basePolicy ==
-            MapLocationPolicy.ServerDefault)
-        {
-            return;
-        }
-
-        if (team.basePolicy ==
-            MapLocationPolicy.Disabled)
-        {
-            return;
-        }
-
-        throw new InvalidDataException(
-            "Base policy desconhecida."
-        );
     }
 
-    private static void ValidateFlagPolicy(
-        MapTeamMetadata team,
-        VoxelMapData terrain)
+    private static void ValidatePointEntities(
+        MapPointEntityMetadata[] entities,
+        VoxelMapData terrain,
+        string context)
     {
-        if (team.flagPolicy ==
-            MapLocationPolicy.MapDefined)
+        if (entities == null)
         {
-            if (!team.hasFlag)
+            return;
+        }
+
+        foreach (MapPointEntityMetadata entity
+                 in entities)
+        {
+            if (entity == null)
             {
                 throw new InvalidDataException(
-                    "O time " +
-                    team.id +
-                    " possui flag MapDefined, " +
-                    "mas hasFlag está false."
+                    "Point entity nula em " +
+                    context
                 );
             }
 
             ValidateCoordinate(
-                team.flagPosition,
+                entity.position,
                 terrain,
-                team.id +
-                " flag"
+                context +
+                " entity " +
+                entity.sourceItem
             );
-
-            return;
         }
-
-        if (team.flagPolicy ==
-            MapLocationPolicy.ServerDefault)
-        {
-            return;
-        }
-
-        if (team.flagPolicy ==
-            MapLocationPolicy.Disabled)
-        {
-            return;
-        }
-
-        throw new InvalidDataException(
-            "Flag policy desconhecida."
-        );
     }
 
     private static void ValidateCoordinate(
@@ -520,8 +634,7 @@ public static class LegacyMapNativeConverter
         {
             throw new InvalidDataException(
                 description +
-                " possui coordenada fora " +
-                "dos limites: (" +
+                " fora dos limites: (" +
                 coordinate.x +
                 ", " +
                 coordinate.y +
@@ -553,8 +666,9 @@ public static class LegacyMapNativeConverter
                 );
 
             MapMetadata existing =
-                JsonUtility.FromJson<
-                    MapMetadata>(json);
+                JsonUtility.FromJson<MapMetadata>(
+                    json
+                );
 
             if (existing == null)
             {
@@ -565,16 +679,12 @@ public static class LegacyMapNativeConverter
         }
         catch
         {
-            /*
-             * Um metadata antigo inválido não deve
-             * impedir uma nova conversão.
-             */
             return string.Empty;
         }
     }
 
     // ============================================================
-    // FOLDER NAME
+    // FOLDER
     // ============================================================
 
     private static string SanitizeFolderName(
@@ -586,33 +696,30 @@ public static class LegacyMapNativeConverter
             return "Imported Map";
         }
 
-        char[] invalidCharacters =
+        char[] invalid =
             Path.GetInvalidFileNameChars();
 
-        char[] characters =
+        char[] chars =
             value.Trim().ToCharArray();
 
         for (int i = 0;
-             i < characters.Length;
+             i < chars.Length;
              i++)
         {
-            char character =
-                characters[i];
+            bool replace =
+                chars[i] == '/' ||
+                chars[i] == '\\';
 
-            bool invalid =
-                character == '/' ||
-                character == '\\';
-
-            if (!invalid)
+            if (!replace)
             {
                 for (int j = 0;
-                     j < invalidCharacters.Length;
+                     j < invalid.Length;
                      j++)
                 {
-                    if (character ==
-                        invalidCharacters[j])
+                    if (chars[i] ==
+                        invalid[j])
                     {
-                        invalid =
+                        replace =
                             true;
 
                         break;
@@ -620,23 +727,20 @@ public static class LegacyMapNativeConverter
                 }
             }
 
-            if (invalid)
+            if (replace)
             {
-                characters[i] =
+                chars[i] =
                     '_';
             }
         }
 
         string result =
-            new string(
-                characters
-            ).Trim();
+            new string(chars).Trim();
 
         if (string.IsNullOrWhiteSpace(
                 result))
         {
-            result =
-                "Imported Map";
+            return "Imported Map";
         }
 
         return result;

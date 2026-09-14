@@ -65,11 +65,6 @@ public class LegacyMapImporter : MonoBehaviour
             ImportSelectedMap();
         }
 
-        /*
-         * NumPad 0:
-         * converte o mapa legado selecionado
-         * para o formato nativo do Project Spades.
-         */
         if (Keyboard.current.numpad0Key
             .wasPressedThisFrame)
         {
@@ -78,7 +73,7 @@ public class LegacyMapImporter : MonoBehaviour
     }
 
     // ============================================================
-    // MAP CATALOG
+    // CATALOG
     // ============================================================
 
     public void RefreshMapList()
@@ -148,7 +143,7 @@ public class LegacyMapImporter : MonoBehaviour
     }
 
     // ============================================================
-    // IMPORT / TEST LEGACY MAP
+    // IMPORT
     // ============================================================
 
     public bool ImportSelectedMap()
@@ -156,7 +151,6 @@ public class LegacyMapImporter : MonoBehaviour
         if (world == null)
         {
             Debug.LogError(
-                "LegacyMapImporter: " +
                 "VoxelWorld não definido."
             );
 
@@ -168,47 +162,38 @@ public class LegacyMapImporter : MonoBehaviour
             return false;
         }
 
-        if (selectedMapIndex < 0 ||
-            selectedMapIndex >= maps.Count)
-        {
-            Debug.LogError(
-                "Índice de mapa inválido."
-            );
+        LegacyMapEntry map =
+            GetSelectedMap();
 
+        if (map == null)
+        {
             return false;
         }
-
-        LegacyMapEntry selectedMap =
-            maps[selectedMapIndex];
 
         try
         {
             Debug.Log(
                 "================================\n" +
                 "IMPORTANDO: " +
-                selectedMap.Name +
+                map.Name +
                 "\n" +
                 "================================"
             );
 
             LogSidecars(
-                selectedMap
+                map
             );
 
-            /*
-             * Se existir UGC, tratamos o mapa
-             * como Jagex/Retail.
-             */
-            if (selectedMap.HasUgc)
+            if (map.HasUgc)
             {
                 TryReadJagexUgc(
-                    selectedMap
+                    map
                 );
             }
-            else if (selectedMap.HasTxt)
+            else if (map.HasTxt)
             {
                 TryReadPySnipTxt(
-                    selectedMap
+                    map
                 );
             }
 
@@ -217,135 +202,33 @@ public class LegacyMapImporter : MonoBehaviour
 
             Debug.Log(
                 "Importando VXL:\n" +
-                selectedMap.VxlPath
+                map.VxlPath
             );
 
-            VoxelMapData mapData =
+            VoxelMapData terrain =
                 VxlReader.Load(
-                    selectedMap.VxlPath
+                    map.VxlPath
                 );
 
             Debug.Log(
                 "VXL decodificado. Dimensões: " +
-                mapData.SizeX +
+                terrain.SizeX +
                 " x " +
-                mapData.SizeY +
+                terrain.SizeY +
                 " x " +
-                mapData.SizeZ
+                terrain.SizeZ
             );
 
             world.LoadMapData(
-                mapData
+                terrain
             );
 
             stopwatch.Stop();
 
             Debug.Log(
                 "Mapa \"" +
-                selectedMap.Name +
+                map.Name +
                 "\" importado com sucesso.\n" +
-                "Tempo total: " +
-                stopwatch.Elapsed.TotalSeconds
-                    .ToString("F2") +
-                "s"
-            );
-
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Debug.LogError(
-                "Erro ao importar \"" +
-                selectedMap.Name +
-                "\":\n" +
-                exception
-            );
-
-            return false;
-        }
-    }
-
-    // ============================================================
-    // CONVERT TO NATIVE FORMAT
-    // ============================================================
-
-    public bool ConvertSelectedMapToNative()
-    {
-        if (!EnsureMapsAvailable())
-        {
-            return false;
-        }
-
-        if (selectedMapIndex < 0 ||
-            selectedMapIndex >= maps.Count)
-        {
-            Debug.LogError(
-                "Índice de mapa inválido."
-            );
-
-            return false;
-        }
-
-        LegacyMapEntry selectedMap =
-            maps[selectedMapIndex];
-
-        if (selectedMap.HasUgc)
-        {
-            Debug.LogWarning(
-                "O mapa \"" +
-                selectedMap.Name +
-                "\" foi identificado como " +
-                "Jagex/Retail.\n" +
-                "A conversão UGC será implementada " +
-                "no próximo estágio."
-            );
-
-            return false;
-        }
-
-        if (!selectedMap.HasTxt)
-        {
-            Debug.LogWarning(
-                "O mapa \"" +
-                selectedMap.Name +
-                "\" não possui TXT PySnip.\n" +
-                "A conversão PySnip atual requer " +
-                "um par .vxl + .txt."
-            );
-
-            return false;
-        }
-
-        try
-        {
-            Debug.Log(
-                "================================\n" +
-                "CONVERTENDO PARA FORMATO NATIVO\n" +
-                "Mapa: " +
-                selectedMap.Name +
-                "\n" +
-                "================================"
-            );
-
-            Stopwatch stopwatch =
-                Stopwatch.StartNew();
-
-            string outputDirectory =
-                LegacyMapNativeConverter
-                    .ConvertPySnipMap(
-                        selectedMap
-                    );
-
-            stopwatch.Stop();
-
-            Debug.Log(
-                "Conversão concluída com sucesso.\n" +
-                "Destino:\n" +
-                outputDirectory +
-                "\n" +
-                "Arquivos:\n" +
-                "  terrain.vxm\n" +
-                "  map.json\n" +
                 "Tempo: " +
                 stopwatch.Elapsed.TotalSeconds
                     .ToString("F2") +
@@ -357,9 +240,109 @@ public class LegacyMapImporter : MonoBehaviour
         catch (Exception exception)
         {
             Debug.LogError(
-                "Erro ao converter \"" +
-                selectedMap.Name +
-                "\" para formato nativo:\n" +
+                "Erro ao importar \"" +
+                map.Name +
+                "\":\n" +
+                exception
+            );
+
+            return false;
+        }
+    }
+
+    // ============================================================
+    // CONVERSION
+    // ============================================================
+
+    public bool ConvertSelectedMapToNative()
+    {
+        if (!EnsureMapsAvailable())
+        {
+            return false;
+        }
+
+        LegacyMapEntry map =
+            GetSelectedMap();
+
+        if (map == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            Debug.Log(
+                "================================\n" +
+                "CONVERSÃO NATIVA\n" +
+                "Mapa: " +
+                map.Name +
+                "\n" +
+                "================================"
+            );
+
+            Stopwatch stopwatch =
+                Stopwatch.StartNew();
+
+            string outputDirectory;
+
+            if (map.HasUgc)
+            {
+                Debug.Log(
+                    "Pipeline: Jagex/Retail"
+                );
+
+                outputDirectory =
+                    LegacyMapNativeConverter
+                        .ConvertJagexMap(
+                            map
+                        );
+            }
+            else if (map.HasTxt)
+            {
+                Debug.Log(
+                    "Pipeline: PySnip/PySpades"
+                );
+
+                outputDirectory =
+                    LegacyMapNativeConverter
+                        .ConvertPySnipMap(
+                            map
+                        );
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "O mapa possui somente VXL. " +
+                    "Ainda não há metadata suficiente " +
+                    "para conversão completa."
+                );
+
+                return false;
+            }
+
+            stopwatch.Stop();
+
+            Debug.Log(
+                "CONVERSÃO NATIVA CONCLUÍDA\n" +
+                "Destino: " +
+                outputDirectory +
+                "\n" +
+                "terrain.vxm: OK\n" +
+                "map.json: OK\n" +
+                "Tempo: " +
+                stopwatch.Elapsed.TotalSeconds
+                    .ToString("F2") +
+                "s"
+            );
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError(
+                "Erro na conversão nativa de \"" +
+                map.Name +
+                "\":\n" +
                 exception
             );
 
@@ -381,357 +364,34 @@ public class LegacyMapImporter : MonoBehaviour
                     map.TxtPath
                 );
 
-            Debug.Log(
-                "PySnip TXT carregado:\n" +
-                "Nome: " +
-                data.Name +
-                "\n" +
-                "Versão: " +
-                data.Version +
-                "\n" +
-                "Autor: " +
-                data.Author +
-                "\n" +
-                "Descrição: " +
-                data.Description +
-                "\n" +
-                "Extensions: " +
-                data.Extensions.Count
-            );
-
-            LogPySnipSpawnPolicy(
-                data
-            );
-
-            LogPySnipEntityPolicy(
-                data
-            );
-
-            LogPySnipCoordinates(
-                data
-            );
-
             MapGameplayMetadata gameplay =
                 PySnipGameplayConverter.Convert(
                     data
                 );
 
-            LogNativeGameplayMetadata(
-                gameplay
+            int teamCount =
+                gameplay.teams != null
+                    ? gameplay.teams.Length
+                    : 0;
+
+            Debug.Log(
+                "PySnip TXT carregado:\n" +
+                "Nome: " +
+                data.Name +
+                "\n" +
+                "Autor: " +
+                data.Author +
+                "\n" +
+                "Times convertidos: " +
+                teamCount
             );
         }
         catch (Exception exception)
         {
             Debug.LogWarning(
-                "O VXL será carregado, mas o " +
-                "TXT PySnip não pôde ser " +
-                "interpretado:\n" +
+                "TXT PySnip não pôde ser lido:\n" +
                 exception
             );
-        }
-    }
-
-    private static void LogPySnipSpawnPolicy(
-        PySnipMapScriptData data)
-    {
-        string bluePolicy =
-            GetSpawnPolicyText(
-                data.HasCustomBlueSpawns,
-                data.BlueSpawns.Count
-            );
-
-        string greenPolicy =
-            GetSpawnPolicyText(
-                data.HasCustomGreenSpawns,
-                data.GreenSpawns.Count
-            );
-
-        Debug.Log(
-            "PySnip Spawn Policy:\n" +
-            "Blue: " +
-            bluePolicy +
-            "\n" +
-            "Green: " +
-            greenPolicy
-        );
-    }
-
-    private static void LogPySnipEntityPolicy(
-        PySnipMapScriptData data)
-    {
-        string blueBasePolicy =
-            GetEntityPolicyText(
-                data.HasBlueBase
-            );
-
-        string greenBasePolicy =
-            GetEntityPolicyText(
-                data.HasGreenBase
-            );
-
-        string blueFlagPolicy =
-            GetEntityPolicyText(
-                data.HasBlueFlag
-            );
-
-        string greenFlagPolicy =
-            GetEntityPolicyText(
-                data.HasGreenFlag
-            );
-
-        Debug.Log(
-            "PySnip Entity Policy:\n" +
-            "Blue Base: " +
-            blueBasePolicy +
-            "\n" +
-            "Green Base: " +
-            greenBasePolicy +
-            "\n" +
-            "Blue Flag: " +
-            blueFlagPolicy +
-            "\n" +
-            "Green Flag: " +
-            greenFlagPolicy
-        );
-    }
-
-    private static string GetSpawnPolicyText(
-        bool hasCustomSpawns,
-        int count)
-    {
-        if (hasCustomSpawns)
-        {
-            return
-                "Map Defined (" +
-                count +
-                ")";
-        }
-
-        return "Server Default";
-    }
-
-    private static string GetEntityPolicyText(
-        bool mapDefined)
-    {
-        if (mapDefined)
-        {
-            return "Map Defined";
-        }
-
-        return "Server Default";
-    }
-
-    private static void LogPySnipCoordinates(
-        PySnipMapScriptData data)
-    {
-        if (data.HasBlueBase)
-        {
-            Debug.Log(
-                "Blue Base -> " +
-                FormatCoordinate(
-                    data.BlueBase
-                )
-            );
-        }
-
-        if (data.HasGreenBase)
-        {
-            Debug.Log(
-                "Green Base -> " +
-                FormatCoordinate(
-                    data.GreenBase
-                )
-            );
-        }
-
-        if (data.HasBlueFlag)
-        {
-            Debug.Log(
-                "Blue Flag -> " +
-                FormatCoordinate(
-                    data.BlueFlag
-                )
-            );
-        }
-
-        if (data.HasGreenFlag)
-        {
-            Debug.Log(
-                "Green Flag -> " +
-                FormatCoordinate(
-                    data.GreenFlag
-                )
-            );
-        }
-
-        for (int i = 0;
-             i < data.BlueSpawns.Count;
-             i++)
-        {
-            Debug.Log(
-                "Blue Spawn #" +
-                (i + 1) +
-                " -> " +
-                FormatCoordinate(
-                    data.BlueSpawns[i]
-                )
-            );
-        }
-
-        for (int i = 0;
-             i < data.GreenSpawns.Count;
-             i++)
-        {
-            Debug.Log(
-                "Green Spawn #" +
-                (i + 1) +
-                " -> " +
-                FormatCoordinate(
-                    data.GreenSpawns[i]
-                )
-            );
-        }
-    }
-
-    // ============================================================
-    // NATIVE GAMEPLAY METADATA
-    // ============================================================
-
-    private static void LogNativeGameplayMetadata(
-        MapGameplayMetadata gameplay)
-    {
-        if (gameplay == null)
-        {
-            Debug.LogWarning(
-                "MapGameplayMetadata nulo."
-            );
-
-            return;
-        }
-
-        Debug.Log(
-            "================================\n" +
-            "METADATA NATIVO GERADO\n" +
-            "================================"
-        );
-
-        Debug.Log(
-            "Default Game Mode: " +
-            gameplay.defaultGameMode
-        );
-
-        if (gameplay.supportedGameModes != null)
-        {
-            string supportedModes =
-                string.Join(
-                    ", ",
-                    gameplay.supportedGameModes
-                );
-
-            Debug.Log(
-                "Supported Game Modes: " +
-                supportedModes
-            );
-        }
-
-        if (gameplay.teams == null ||
-            gameplay.teams.Length == 0)
-        {
-            Debug.LogWarning(
-                "Nenhum time no metadata."
-            );
-
-            return;
-        }
-
-        foreach (MapTeamMetadata team
-                 in gameplay.teams)
-        {
-            if (team == null)
-            {
-                continue;
-            }
-
-            int spawnCount = 0;
-
-            if (team.spawnPoints != null)
-            {
-                spawnCount =
-                    team.spawnPoints.Length;
-            }
-
-            Debug.Log(
-                "--------------------------------\n" +
-                "Time: " +
-                team.displayName +
-                "\n" +
-                "ID: " +
-                team.id +
-                "\n" +
-                "Spawn Policy: " +
-                team.spawnPolicy +
-                "\n" +
-                "Spawn Points: " +
-                spawnCount +
-                "\n" +
-                "Base Policy: " +
-                team.basePolicy +
-                "\n" +
-                "Has Base: " +
-                team.hasBase +
-                "\n" +
-                "Flag Policy: " +
-                team.flagPolicy +
-                "\n" +
-                "Has Flag: " +
-                team.hasFlag
-            );
-
-            if (team.spawnPolicy ==
-                    MapLocationPolicy.MapDefined &&
-                team.spawnPoints != null)
-            {
-                for (int i = 0;
-                     i < team.spawnPoints.Length;
-                     i++)
-                {
-                    Debug.Log(
-                        team.displayName +
-                        " Native Spawn #" +
-                        (i + 1) +
-                        " -> " +
-                        FormatCoordinate(
-                            team.spawnPoints[i]
-                        )
-                    );
-                }
-            }
-
-            if (team.basePolicy ==
-                    MapLocationPolicy.MapDefined &&
-                team.hasBase)
-            {
-                Debug.Log(
-                    team.displayName +
-                    " Native Base -> " +
-                    FormatCoordinate(
-                        team.basePosition
-                    )
-                );
-            }
-
-            if (team.flagPolicy ==
-                    MapLocationPolicy.MapDefined &&
-                team.hasFlag)
-            {
-                Debug.Log(
-                    team.displayName +
-                    " Native Flag -> " +
-                    FormatCoordinate(
-                        team.flagPosition
-                    )
-                );
-            }
         }
     }
 
@@ -749,26 +409,16 @@ public class LegacyMapImporter : MonoBehaviour
                     map.UgcPath
                 );
 
-            string[] modes =
-                JagexUgcImporter.GetModes(
-                    ugc
+            JagexGameplayData intermediate =
+                JagexGameplayConverter.Convert(
+                    ugc,
+                    map.VxlPath
                 );
 
-            string modeText;
-
-            if (modes.Length > 0)
-            {
-                modeText =
-                    string.Join(
-                        ", ",
-                        modes
-                    );
-            }
-            else
-            {
-                modeText =
-                    "nenhum";
-            }
+            MapGameplayMetadata native =
+                JagexNativeGameplayConverter.Convert(
+                    intermediate
+                );
 
             Debug.Log(
                 "Jagex UGC carregado:\n" +
@@ -778,49 +428,112 @@ public class LegacyMapImporter : MonoBehaviour
                 "Autor: " +
                 ugc.author +
                 "\n" +
-                "Descrição: " +
-                ugc.description +
+                "Source Z Shift: " +
+                intermediate.SourceZShift +
                 "\n" +
-                "Baseplate: " +
-                ugc.baseplate +
+                "Zonas convertidas: " +
+                intermediate.Zones.Count +
                 "\n" +
-                "Skybox: " +
-                ugc.skybox_name +
+                "Point Entities: " +
+                intermediate.PointEntities.Count +
                 "\n" +
-                "Entidades: " +
-                ugc.ugc_entities.Length +
+                "Unsupported: " +
+                intermediate.Issues.Count +
                 "\n" +
-                "Modos: " +
-                modeText
+                "Modos nativos: " +
+                (
+                    native.modes != null
+                        ? native.modes.Length
+                        : 0
+                ) +
+                "\n" +
+                "Common Entities: " +
+                (
+                    native.commonEntities != null
+                        ? native.commonEntities.Length
+                        : 0
+                )
+            );
+
+            LogNativeJagexModes(
+                native
             );
         }
         catch (Exception exception)
         {
             Debug.LogWarning(
-                "O VXL será carregado, mas o " +
-                "arquivo UGC não pôde ser lido:\n" +
+                "UGC Jagex não pôde ser lido:\n" +
                 exception
             );
         }
     }
 
-    // ============================================================
-    // GENERAL LOGGING
-    // ============================================================
-
-    private void LogSelectedMap()
+    private static void LogNativeJagexModes(
+        MapGameplayMetadata gameplay)
     {
-        if (maps.Count == 0)
+        if (gameplay == null ||
+            gameplay.modes == null)
         {
-            Debug.LogWarning(
-                "Nenhum mapa legado disponível."
-            );
-
             return;
         }
 
+        foreach (MapGameModeMetadata mode
+                 in gameplay.modes)
+        {
+            if (mode == null)
+            {
+                continue;
+            }
+
+            int zones =
+                mode.zones != null
+                    ? mode.zones.Length
+                    : 0;
+
+            int entities =
+                mode.entities != null
+                    ? mode.entities.Length
+                    : 0;
+
+            Debug.Log(
+                "Native Mode: " +
+                mode.id +
+                "\nZones: " +
+                zones +
+                "\nEntities: " +
+                entities
+            );
+        }
+    }
+
+    // ============================================================
+    // GENERAL
+    // ============================================================
+
+    private LegacyMapEntry GetSelectedMap()
+    {
+        if (selectedMapIndex < 0 ||
+            selectedMapIndex >= maps.Count)
+        {
+            Debug.LogError(
+                "Índice de mapa inválido."
+            );
+
+            return null;
+        }
+
+        return maps[selectedMapIndex];
+    }
+
+    private void LogSelectedMap()
+    {
         LegacyMapEntry map =
-            maps[selectedMapIndex];
+            GetSelectedMap();
+
+        if (map == null)
+        {
+            return;
+        }
 
         Debug.Log(
             "Mapa selecionado: [" +
@@ -830,7 +543,9 @@ public class LegacyMapImporter : MonoBehaviour
             "] " +
             map.Name +
             " " +
-            GetSidecarDescription(map)
+            GetSidecarDescription(
+                map
+            )
         );
     }
 
@@ -840,22 +555,10 @@ public class LegacyMapImporter : MonoBehaviour
         if (map.HasUgc)
         {
             Debug.Log(
-                "Formato identificado: " +
-                "Jagex/Retail"
-            );
-
-            Debug.Log(
-                "UGC/Jagex encontrado:\n" +
+                "Formato identificado: Jagex/Retail\n" +
+                "UGC: " +
                 map.UgcPath
             );
-
-            if (map.HasTxt)
-            {
-                Debug.Log(
-                    "TXT auxiliar encontrado:\n" +
-                    map.TxtPath
-                );
-            }
 
             return;
         }
@@ -863,12 +566,8 @@ public class LegacyMapImporter : MonoBehaviour
         if (map.HasTxt)
         {
             Debug.Log(
-                "Formato identificado: " +
-                "PySnip/PySpades"
-            );
-
-            Debug.Log(
-                "TXT/PySnip encontrado:\n" +
+                "Formato identificado: PySnip/PySpades\n" +
+                "TXT: " +
                 map.TxtPath
             );
 
@@ -876,20 +575,13 @@ public class LegacyMapImporter : MonoBehaviour
         }
 
         Debug.Log(
-            "Formato identificado: " +
-            "VXL sem sidecar"
+            "Formato identificado: somente VXL."
         );
     }
 
     private static string GetSidecarDescription(
         LegacyMapEntry map)
     {
-        if (map.HasUgc &&
-            map.HasTxt)
-        {
-            return "(Jagex UGC + TXT)";
-        }
-
         if (map.HasUgc)
         {
             return "(Jagex UGC)";
@@ -913,18 +605,5 @@ public class LegacyMapImporter : MonoBehaviour
         RefreshMapList();
 
         return maps.Count > 0;
-    }
-
-    private static string FormatCoordinate(
-        MapCoordinate coordinate)
-    {
-        return
-            "(" +
-            coordinate.x +
-            ", " +
-            coordinate.y +
-            ", " +
-            coordinate.z +
-            ")";
     }
 }

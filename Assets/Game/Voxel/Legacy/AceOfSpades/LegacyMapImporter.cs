@@ -293,6 +293,15 @@ public class LegacyMapImporter : MonoBehaviour
             LogPySnipCoordinates(
                 data
             );
+
+            MapGameplayMetadata gameplay =
+                PySnipGameplayConverter.Convert(
+                    data
+                );
+
+            LogNativeGameplayMetadata(
+                gameplay
+            );
         }
         catch (Exception exception)
         {
@@ -464,6 +473,148 @@ public class LegacyMapImporter : MonoBehaviour
                     data.GreenSpawns[i]
                 )
             );
+        }
+    }
+
+    // ============================================================
+    // NATIVE GAMEPLAY METADATA
+    // ============================================================
+
+    private static void LogNativeGameplayMetadata(
+        MapGameplayMetadata gameplay)
+    {
+        if (gameplay == null)
+        {
+            Debug.LogWarning(
+                "MapGameplayMetadata nulo."
+            );
+
+            return;
+        }
+
+        Debug.Log(
+            "================================\n" +
+            "METADATA NATIVO GERADO\n" +
+            "================================"
+        );
+
+        Debug.Log(
+            "Default Game Mode: " +
+            gameplay.defaultGameMode
+        );
+
+        if (gameplay.supportedGameModes != null)
+        {
+            string supportedModes =
+                string.Join(
+                    ", ",
+                    gameplay.supportedGameModes
+                );
+
+            Debug.Log(
+                "Supported Game Modes: " +
+                supportedModes
+            );
+        }
+
+        if (gameplay.teams == null ||
+            gameplay.teams.Length == 0)
+        {
+            Debug.LogWarning(
+                "Nenhum time no metadata."
+            );
+
+            return;
+        }
+
+        foreach (MapTeamMetadata team
+                 in gameplay.teams)
+        {
+            if (team == null)
+            {
+                continue;
+            }
+
+            int spawnCount = 0;
+
+            if (team.spawnPoints != null)
+            {
+                spawnCount =
+                    team.spawnPoints.Length;
+            }
+
+            Debug.Log(
+                "--------------------------------\n" +
+                "Time: " +
+                team.displayName +
+                "\n" +
+                "ID: " +
+                team.id +
+                "\n" +
+                "Spawn Policy: " +
+                team.spawnPolicy +
+                "\n" +
+                "Spawn Points: " +
+                spawnCount +
+                "\n" +
+                "Base Policy: " +
+                team.basePolicy +
+                "\n" +
+                "Has Base: " +
+                team.hasBase +
+                "\n" +
+                "Flag Policy: " +
+                team.flagPolicy +
+                "\n" +
+                "Has Flag: " +
+                team.hasFlag
+            );
+
+            if (team.spawnPolicy ==
+                    MapLocationPolicy.MapDefined &&
+                team.spawnPoints != null)
+            {
+                for (int i = 0;
+                     i < team.spawnPoints.Length;
+                     i++)
+                {
+                    Debug.Log(
+                        team.displayName +
+                        " Native Spawn #" +
+                        (i + 1) +
+                        " -> " +
+                        FormatCoordinate(
+                            team.spawnPoints[i]
+                        )
+                    );
+                }
+            }
+
+            if (team.basePolicy ==
+                    MapLocationPolicy.MapDefined &&
+                team.hasBase)
+            {
+                Debug.Log(
+                    team.displayName +
+                    " Native Base -> " +
+                    FormatCoordinate(
+                        team.basePosition
+                    )
+                );
+            }
+
+            if (team.flagPolicy ==
+                    MapLocationPolicy.MapDefined &&
+                team.hasFlag)
+            {
+                Debug.Log(
+                    team.displayName +
+                    " Native Flag -> " +
+                    FormatCoordinate(
+                        team.flagPosition
+                    )
+                );
+            }
         }
     }
 

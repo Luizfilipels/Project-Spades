@@ -648,6 +648,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VoxelWorld
   chunksX: 8
   chunksZ: 8
+  defaultWorldHeight: 64
   voxelMaterial: {fileID: 2100000, guid: 1c87b6aed116c12b5b5347cb335e76df, type: 2}
 --- !u!4 &2073104210
 Transform:
@@ -677,7 +678,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoxelMapManager
   world: {fileID: 2073104209}
-  mapFolderName: TestMap
+  mapFolderName: Bikini Bottom
   mapName: Test Map
   author: Project Spades
   description: Project Spades test map.
@@ -687,15 +688,18 @@ MonoBehaviour:
   teams:
   - id: blue
     displayName: Blue
+    spawnPolicy: 0
     spawnPoints:
     - x: 16
       y: 40
       z: 16
+    basePolicy: 0
     hasBase: 1
     basePosition:
       x: 16
       y: 40
       z: 18
+    flagPolicy: 0
     hasFlag: 1
     flagPosition:
       x: 16
@@ -703,15 +707,18 @@ MonoBehaviour:
       z: 18
   - id: green
     displayName: Green
+    spawnPolicy: 0
     spawnPoints:
     - x: 112
       y: 40
       z: 112
+    basePolicy: 0
     hasBase: 1
     basePosition:
       x: 112
       y: 40
       z: 118
+    flagPolicy: 0
     hasFlag: 1
     flagPosition:
       x: 112
@@ -731,8 +738,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LegacyMapImporter
   world: {fileID: 2073104209}
-  vxlFilePath: Bikini Bottom.vxl
-  enableDebugHotkey: 1
+  selectedMapIndex: 0
+  enableDebugHotkeys: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

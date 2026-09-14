@@ -4,8 +4,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class VoxelMapManager :
-    MonoBehaviour
+public class VoxelMapManager : MonoBehaviour
 {
     [Header("World")]
     [SerializeField]
@@ -24,8 +23,8 @@ public class VoxelMapManager :
     private string author =
         "Project Spades";
 
-    [TextArea]
     [SerializeField]
+    [TextArea]
     private string description =
         "Project Spades test map.";
 
@@ -49,25 +48,25 @@ public class VoxelMapManager :
     private bool enableDebugHotkeys =
         true;
 
-    private const int CurrentMetadataVersion =
-        1;
-
     private const string MapsFolder =
         "Maps";
 
-    private const string MetadataFile =
+    private const string MetadataFileName =
         "map.json";
 
     private const string DefaultTerrainFile =
         "terrain.vxm";
+
+    // ============================================================
+    // UNITY
+    // ============================================================
 
     private void Awake()
     {
         if (world == null)
         {
             world =
-                FindAnyObjectByType<
-                    VoxelWorld>();
+                FindAnyObjectByType<VoxelWorld>();
         }
     }
 
@@ -79,18 +78,84 @@ public class VoxelMapManager :
             return;
         }
 
+        /*
+         * Mantemos os atalhos antigos.
+         */
         if (Keyboard.current.f5Key
             .wasPressedThisFrame)
         {
+            Debug.Log(
+                "VoxelMapManager: F5 detectado."
+            );
+
             SaveCurrentMap();
         }
 
         if (Keyboard.current.f9Key
             .wasPressedThisFrame)
         {
+            Debug.Log(
+                "VoxelMapManager: F9 detectado."
+            );
+
             LoadCurrentMap();
         }
+
+        /*
+         * Atalhos novos usando teclado numérico.
+         *
+         * NumPad 1 = Load
+         * NumPad 2 = Save
+         */
+        if (Keyboard.current.numpad1Key
+            .wasPressedThisFrame)
+        {
+            Debug.Log(
+                "VoxelMapManager: NumPad 1 detectado."
+            );
+
+            LoadCurrentMap();
+        }
+
+        if (Keyboard.current.numpad2Key
+            .wasPressedThisFrame)
+        {
+            Debug.Log(
+                "VoxelMapManager: NumPad 2 detectado."
+            );
+
+            SaveCurrentMap();
+        }
     }
+
+    // ============================================================
+    // PATHS
+    // ============================================================
+
+    public static string GetMapsDirectory()
+    {
+        return Path.Combine(
+            Application.persistentDataPath,
+            MapsFolder
+        );
+    }
+
+    private string GetCurrentMapDirectory()
+    {
+        string safeFolderName =
+            SanitizeFolderName(
+                mapFolderName
+            );
+
+        return Path.Combine(
+            GetMapsDirectory(),
+            safeFolderName
+        );
+    }
+
+    // ============================================================
+    // SAVE
+    // ============================================================
 
     public bool SaveCurrentMap()
     {
@@ -106,12 +171,27 @@ public class VoxelMapManager :
 
         try
         {
+            Debug.Log(
+                "================================\n" +
+                "SALVANDO MAPA NATIVO\n" +
+                "Folder: " +
+                mapFolderName +
+                "\n" +
+                "================================"
+            );
+
             string mapDirectory =
-                GetMapDirectory();
+                GetCurrentMapDirectory();
 
             Directory.CreateDirectory(
                 mapDirectory
             );
+
+            string metadataPath =
+                Path.Combine(
+                    mapDirectory,
+                    MetadataFileName
+                );
 
             string terrainPath =
                 Path.Combine(
@@ -119,90 +199,69 @@ public class VoxelMapManager :
                     DefaultTerrainFile
                 );
 
-            string metadataPath =
-                Path.Combine(
-                    mapDirectory,
-                    MetadataFile
-                );
-
             VoxelMapData mapData =
                 world.CaptureMapData();
 
-            VxmSerializer.Save(
-                terrainPath,
-                mapData
-            );
-
-            string now =
-                DateTime.UtcNow
-                    .ToString("O");
+            string nowUtc =
+                DateTime.UtcNow.ToString(
+                    "o"
+                );
 
             string createdUtc =
-                GetExistingCreationDate(
+                ReadExistingCreationDate(
                     metadataPath
                 );
 
-            if (string.IsNullOrEmpty(
+            if (string.IsNullOrWhiteSpace(
                     createdUtc))
             {
-                createdUtc = now;
+                createdUtc =
+                    nowUtc;
             }
 
-            MapGameplayMetadata gameplay =
-                new MapGameplayMetadata
-                {
-                    defaultGameMode =
-                        defaultGameMode,
-
-                    supportedGameModes =
-                        supportedGameModes ??
-                        Array.Empty<string>(),
-
-                    teams =
-                        teams ??
-                        Array.Empty<
-                            MapTeamMetadata>()
-                };
-
             MapMetadata metadata =
-                new MapMetadata
-                {
-                    formatVersion =
-                        CurrentMetadataVersion,
+                new MapMetadata();
 
-                    name =
-                        mapName,
+            metadata.formatVersion =
+                1;
 
-                    author =
-                        author,
+            metadata.name =
+                mapName;
 
-                    description =
-                        description,
+            metadata.author =
+                author;
 
-                    terrainFile =
-                        DefaultTerrainFile,
+            metadata.description =
+                description;
 
-                    sizeX =
-                        mapData.SizeX,
+            metadata.terrainFile =
+                DefaultTerrainFile;
 
-                    sizeY =
-                        mapData.SizeY,
+            metadata.sizeX =
+                mapData.SizeX;
 
-                    sizeZ =
-                        mapData.SizeZ,
+            metadata.sizeY =
+                mapData.SizeY;
 
-                    createdUtc =
-                        createdUtc,
+            metadata.sizeZ =
+                mapData.SizeZ;
 
-                    modifiedUtc =
-                        now,
+            metadata.createdUtc =
+                createdUtc;
 
-                    gameplay =
-                        gameplay
-                };
+            metadata.modifiedUtc =
+                nowUtc;
+
+            metadata.gameplay =
+                CreateGameplayMetadata();
 
             ValidateMetadata(
                 metadata,
+                mapData
+            );
+
+            VxmSerializer.Save(
+                terrainPath,
                 mapData
             );
 
@@ -218,7 +277,8 @@ public class VoxelMapManager :
             );
 
             Debug.Log(
-                "Mapa salvo com sucesso:\n" +
+                "Mapa nativo salvo com sucesso.\n" +
+                "Destino: " +
                 mapDirectory
             );
 
@@ -227,13 +287,39 @@ public class VoxelMapManager :
         catch (Exception exception)
         {
             Debug.LogError(
-                "Erro ao salvar mapa:\n" +
+                "Erro ao salvar mapa nativo:\n" +
                 exception
             );
 
             return false;
         }
     }
+
+    private MapGameplayMetadata
+        CreateGameplayMetadata()
+    {
+        MapGameplayMetadata gameplay =
+            new MapGameplayMetadata();
+
+        gameplay.defaultGameMode =
+            defaultGameMode;
+
+        gameplay.supportedGameModes =
+            supportedGameModes != null
+                ? supportedGameModes
+                : Array.Empty<string>();
+
+        gameplay.teams =
+            teams != null
+                ? teams
+                : Array.Empty<MapTeamMetadata>();
+
+        return gameplay;
+    }
+
+    // ============================================================
+    // LOAD
+    // ============================================================
 
     public bool LoadCurrentMap()
     {
@@ -250,23 +336,42 @@ public class VoxelMapManager :
         try
         {
             string mapDirectory =
-                GetMapDirectory();
+                GetCurrentMapDirectory();
 
             string metadataPath =
                 Path.Combine(
                     mapDirectory,
-                    MetadataFile
+                    MetadataFileName
                 );
+
+            Debug.Log(
+                "================================\n" +
+                "CARREGANDO MAPA NATIVO\n" +
+                "Folder solicitado: " +
+                mapFolderName +
+                "\n" +
+                "Diretório: " +
+                mapDirectory +
+                "\n" +
+                "================================"
+            );
+
+            if (!Directory.Exists(
+                    mapDirectory))
+            {
+                throw new DirectoryNotFoundException(
+                    "Pasta do mapa não encontrada:\n" +
+                    mapDirectory
+                );
+            }
 
             if (!File.Exists(
                     metadataPath))
             {
-                Debug.LogError(
-                    "map.json não encontrado:\n" +
+                throw new FileNotFoundException(
+                    "map.json não encontrado.",
                     metadataPath
                 );
-
-                return false;
             }
 
             string json =
@@ -275,13 +380,15 @@ public class VoxelMapManager :
                 );
 
             MapMetadata metadata =
-                JsonUtility.FromJson<
-                    MapMetadata>(json);
+                JsonUtility.FromJson<MapMetadata>(
+                    json
+                );
 
             if (metadata == null)
             {
                 throw new InvalidDataException(
-                    "map.json inválido."
+                    "Não foi possível interpretar " +
+                    "o map.json."
                 );
             }
 
@@ -303,10 +410,19 @@ public class VoxelMapManager :
                     terrainPath))
             {
                 throw new FileNotFoundException(
-                    "terrain.vxm não encontrado.",
+                    "Arquivo terrain não encontrado.",
                     terrainPath
                 );
             }
+
+            Debug.Log(
+                "map.json encontrado.\n" +
+                "Mapa: " +
+                metadata.name +
+                "\n" +
+                "Terrain: " +
+                terrainPath
+            );
 
             VoxelMapData mapData =
                 VxmSerializer.Load(
@@ -318,6 +434,16 @@ public class VoxelMapManager :
                 mapData
             );
 
+            Debug.Log(
+                "terrain.vxm carregado.\n" +
+                "Dimensões: " +
+                mapData.SizeX +
+                " x " +
+                mapData.SizeY +
+                " x " +
+                mapData.SizeZ
+            );
+
             world.LoadMapData(
                 mapData
             );
@@ -326,14 +452,16 @@ public class VoxelMapManager :
                 metadata
             );
 
+            LogLoadedGameplay(
+                metadata.gameplay
+            );
+
             Debug.Log(
-                $"Mapa carregado: " +
-                $"{metadata.name}\n" +
-                $"Modo padrão: " +
-                $"{metadata.gameplay.defaultGameMode}\n" +
-                $"Times: " +
-                $"{metadata.gameplay.teams.Length}\n" +
-                mapDirectory
+                "================================\n" +
+                "MAPA NATIVO CARREGADO COM SUCESSO\n" +
+                metadata.name +
+                "\n" +
+                "================================"
             );
 
             return true;
@@ -341,13 +469,17 @@ public class VoxelMapManager :
         catch (Exception exception)
         {
             Debug.LogError(
-                "Erro ao carregar mapa:\n" +
+                "Erro ao carregar mapa nativo:\n" +
                 exception
             );
 
             return false;
         }
     }
+
+    // ============================================================
+    // APPLY METADATA
+    // ============================================================
 
     private void ApplyLoadedMetadata(
         MapMetadata metadata)
@@ -361,23 +493,101 @@ public class VoxelMapManager :
         description =
             metadata.description;
 
+        if (metadata.gameplay == null)
+        {
+            return;
+        }
+
         defaultGameMode =
             metadata.gameplay
                 .defaultGameMode;
 
         supportedGameModes =
             metadata.gameplay
-                .supportedGameModes ??
-            Array.Empty<string>();
+                .supportedGameModes != null
+                ? metadata.gameplay
+                    .supportedGameModes
+                : Array.Empty<string>();
 
         teams =
-            metadata.gameplay.teams ??
-            Array.Empty<MapTeamMetadata>();
+            metadata.gameplay.teams != null
+                ? metadata.gameplay.teams
+                : Array.Empty<MapTeamMetadata>();
     }
 
-    private static void
-        UpgradeMissingMetadata(
-            MapMetadata metadata)
+    // ============================================================
+    // GAMEPLAY LOG
+    // ============================================================
+
+    private static void LogLoadedGameplay(
+        MapGameplayMetadata gameplay)
+    {
+        if (gameplay == null)
+        {
+            Debug.LogWarning(
+                "Mapa carregado sem gameplay metadata."
+            );
+
+            return;
+        }
+
+        int teamCount =
+            gameplay.teams != null
+                ? gameplay.teams.Length
+                : 0;
+
+        Debug.Log(
+            "Gameplay carregado:\n" +
+            "Default Mode: " +
+            gameplay.defaultGameMode +
+            "\n" +
+            "Times: " +
+            teamCount
+        );
+
+        if (gameplay.teams == null)
+        {
+            return;
+        }
+
+        foreach (MapTeamMetadata team
+                 in gameplay.teams)
+        {
+            if (team == null)
+            {
+                continue;
+            }
+
+            int spawnCount =
+                team.spawnPoints != null
+                    ? team.spawnPoints.Length
+                    : 0;
+
+            Debug.Log(
+                "Time: " +
+                team.displayName +
+                "\n" +
+                "Spawn Policy: " +
+                team.spawnPolicy +
+                "\n" +
+                "Spawns: " +
+                spawnCount +
+                "\n" +
+                "Base Policy: " +
+                team.basePolicy +
+                "\n" +
+                "Flag Policy: " +
+                team.flagPolicy
+            );
+        }
+    }
+
+    // ============================================================
+    // METADATA UPGRADE
+    // ============================================================
+
+    private static void UpgradeMissingMetadata(
+        MapMetadata metadata)
     {
         if (metadata.gameplay == null)
         {
@@ -390,111 +600,57 @@ public class VoxelMapManager :
         {
             metadata.gameplay
                 .supportedGameModes =
-                Array.Empty<string>();
+                    Array.Empty<string>();
         }
 
-        if (metadata.gameplay
-                .teams == null)
+        if (metadata.gameplay.teams == null)
         {
             metadata.gameplay.teams =
-                Array.Empty<
-                    MapTeamMetadata>();
+                Array.Empty<MapTeamMetadata>();
         }
-    }
 
-    private string GetMapDirectory()
-    {
-        string safeFolderName =
-            SanitizeFolderName(
-                mapFolderName
-            );
+        foreach (MapTeamMetadata team
+                 in metadata.gameplay.teams)
+        {
+            if (team == null)
+            {
+                continue;
+            }
 
-        return Path.Combine(
-            Application.persistentDataPath,
-            MapsFolder,
-            safeFolderName
-        );
-    }
+            if (team.spawnPoints == null)
+            {
+                team.spawnPoints =
+                    Array.Empty<MapCoordinate>();
+            }
+        }
 
-    private static string
-        SanitizeFolderName(
-            string folderName)
-    {
         if (string.IsNullOrWhiteSpace(
-                folderName))
+                metadata.terrainFile))
         {
-            return "UnnamedMap";
-        }
-
-        char[] invalidChars =
-            Path.GetInvalidFileNameChars();
-
-        foreach (char invalid
-                 in invalidChars)
-        {
-            folderName =
-                folderName.Replace(
-                    invalid,
-                    '_'
-                );
-        }
-
-        folderName =
-            folderName.Replace(
-                "..",
-                "_"
-            );
-
-        folderName =
-            folderName.Replace(
-                '/',
-                '_'
-            );
-
-        folderName =
-            folderName.Replace(
-                '\\',
-                '_'
-            );
-
-        return folderName;
-    }
-
-    private static void
-        ValidateTerrainFileName(
-            string terrainFile)
-    {
-        if (string.IsNullOrWhiteSpace(
-                terrainFile))
-        {
-            throw new InvalidDataException(
-                "terrainFile ausente."
-            );
-        }
-
-        if (Path.GetFileName(
-                terrainFile) !=
-            terrainFile)
-        {
-            throw new InvalidDataException(
-                "terrainFile contém " +
-                "um caminho inválido."
-            );
+            metadata.terrainFile =
+                DefaultTerrainFile;
         }
     }
 
-    private static void
-        ValidateMetadata(
-            MapMetadata metadata,
-            VoxelMapData mapData)
+    // ============================================================
+    // VALIDATION
+    // ============================================================
+
+    private static void ValidateMetadata(
+        MapMetadata metadata,
+        VoxelMapData mapData)
     {
-        if (metadata.formatVersion !=
-            CurrentMetadataVersion)
+        if (metadata == null)
         {
             throw new InvalidDataException(
-                $"Versão de map.json não " +
-                $"suportada: " +
-                $"{metadata.formatVersion}"
+                "Metadata nulo."
+            );
+        }
+
+        if (mapData == null)
+        {
+            throw new InvalidDataException(
+                "VoxelMapData nulo."
             );
         }
 
@@ -506,8 +662,20 @@ public class VoxelMapManager :
                 mapData.SizeZ)
         {
             throw new InvalidDataException(
-                "As dimensões do map.json " +
-                "não correspondem ao terrain.vxm."
+                "Dimensões do map.json não " +
+                "correspondem ao terrain.vxm.\n" +
+                "Metadata: " +
+                metadata.sizeX +
+                " x " +
+                metadata.sizeY +
+                " x " +
+                metadata.sizeZ +
+                "\nTerrain: " +
+                mapData.SizeX +
+                " x " +
+                mapData.SizeY +
+                " x " +
+                mapData.SizeZ
             );
         }
 
@@ -517,17 +685,23 @@ public class VoxelMapManager :
         );
     }
 
-    private static void
-        ValidateGameplay(
-            MapGameplayMetadata gameplay,
-            VoxelMapData mapData)
+    private static void ValidateGameplay(
+        MapGameplayMetadata gameplay,
+        VoxelMapData mapData)
     {
         if (gameplay == null)
-            return;
+        {
+            throw new InvalidDataException(
+                "Gameplay metadata nulo."
+            );
+        }
 
-        MapTeamMetadata[] mapTeams =
-            gameplay.teams ??
-            Array.Empty<MapTeamMetadata>();
+        if (gameplay.teams == null)
+        {
+            throw new InvalidDataException(
+                "Lista de times nula."
+            );
+        }
 
         HashSet<string> teamIds =
             new HashSet<string>(
@@ -535,12 +709,12 @@ public class VoxelMapManager :
             );
 
         foreach (MapTeamMetadata team
-                 in mapTeams)
+                 in gameplay.teams)
         {
             if (team == null)
             {
                 throw new InvalidDataException(
-                    "O mapa contém um time inválido."
+                    "Time nulo encontrado."
                 );
             }
 
@@ -548,57 +722,129 @@ public class VoxelMapManager :
                     team.id))
             {
                 throw new InvalidDataException(
-                    "Todo time deve possuir um ID."
+                    "Time sem ID."
                 );
             }
 
-            if (!teamIds.Add(team.id))
+            if (!teamIds.Add(
+                    team.id))
             {
                 throw new InvalidDataException(
-                    $"ID de time duplicado: " +
-                    $"{team.id}"
+                    "ID de time duplicado: " +
+                    team.id
                 );
             }
 
-            MapCoordinate[] spawns =
-                team.spawnPoints ??
-                Array.Empty<MapCoordinate>();
+            ValidateTeamSpawn(
+                team,
+                mapData
+            );
 
-            foreach (MapCoordinate spawn
-                     in spawns)
-            {
-                ValidateCoordinate(
-                    spawn,
-                    mapData,
-                    $"spawn do time {team.id}"
-                );
-            }
+            ValidateTeamBase(
+                team,
+                mapData
+            );
 
-            if (team.hasBase)
-            {
-                ValidateCoordinate(
-                    team.basePosition,
-                    mapData,
-                    $"base do time {team.id}"
-                );
-            }
-
-            if (team.hasFlag)
-            {
-                ValidateCoordinate(
-                    team.flagPosition,
-                    mapData,
-                    $"flag do time {team.id}"
-                );
-            }
+            ValidateTeamFlag(
+                team,
+                mapData
+            );
         }
     }
 
-    private static void
+    private static void ValidateTeamSpawn(
+        MapTeamMetadata team,
+        VoxelMapData mapData)
+    {
+        if (team.spawnPolicy !=
+            MapLocationPolicy.MapDefined)
+        {
+            return;
+        }
+
+        if (team.spawnPoints == null ||
+            team.spawnPoints.Length == 0)
+        {
+            throw new InvalidDataException(
+                "Time " +
+                team.id +
+                " usa spawn MapDefined, " +
+                "mas não possui spawnPoints."
+            );
+        }
+
+        foreach (MapCoordinate coordinate
+                 in team.spawnPoints)
+        {
+            ValidateCoordinate(
+                coordinate,
+                mapData,
+                team.id +
+                " spawn"
+            );
+        }
+    }
+
+    private static void ValidateTeamBase(
+        MapTeamMetadata team,
+        VoxelMapData mapData)
+    {
+        if (team.basePolicy !=
+            MapLocationPolicy.MapDefined)
+        {
+            return;
+        }
+
+        if (!team.hasBase)
+        {
+            throw new InvalidDataException(
+                "Time " +
+                team.id +
+                " usa base MapDefined, " +
+                "mas hasBase está false."
+            );
+        }
+
         ValidateCoordinate(
-            MapCoordinate coordinate,
-            VoxelMapData mapData,
-            string description)
+            team.basePosition,
+            mapData,
+            team.id +
+            " base"
+        );
+    }
+
+    private static void ValidateTeamFlag(
+        MapTeamMetadata team,
+        VoxelMapData mapData)
+    {
+        if (team.flagPolicy !=
+            MapLocationPolicy.MapDefined)
+        {
+            return;
+        }
+
+        if (!team.hasFlag)
+        {
+            throw new InvalidDataException(
+                "Time " +
+                team.id +
+                " usa flag MapDefined, " +
+                "mas hasFlag está false."
+            );
+        }
+
+        ValidateCoordinate(
+            team.flagPosition,
+            mapData,
+            team.id +
+            " flag"
+        );
+    }
+
+    private static void ValidateCoordinate(
+        MapCoordinate coordinate,
+        VoxelMapData mapData,
+        string description)
     {
         if (coordinate.x < 0 ||
             coordinate.x >= mapData.SizeX ||
@@ -608,23 +854,64 @@ public class VoxelMapManager :
             coordinate.z >= mapData.SizeZ)
         {
             throw new InvalidDataException(
-                $"{description} está fora " +
-                $"dos limites do mapa: " +
-                $"({coordinate.x}, " +
-                $"{coordinate.y}, " +
-                $"{coordinate.z})"
+                description +
+                " fora dos limites: (" +
+                coordinate.x +
+                ", " +
+                coordinate.y +
+                ", " +
+                coordinate.z +
+                ")."
             );
         }
     }
 
-    private static string
-        GetExistingCreationDate(
-            string metadataPath)
+    // ============================================================
+    // TERRAIN FILE SECURITY
+    // ============================================================
+
+    private static void ValidateTerrainFileName(
+        string terrainFile)
+    {
+        if (string.IsNullOrWhiteSpace(
+                terrainFile))
+        {
+            throw new InvalidDataException(
+                "terrainFile vazio."
+            );
+        }
+
+        if (Path.IsPathRooted(
+                terrainFile))
+        {
+            throw new InvalidDataException(
+                "terrainFile não pode ser " +
+                "um caminho absoluto."
+            );
+        }
+
+        if (terrainFile.Contains("..") ||
+            terrainFile.Contains("/") ||
+            terrainFile.Contains("\\"))
+        {
+            throw new InvalidDataException(
+                "terrainFile contém um " +
+                "caminho inválido."
+            );
+        }
+    }
+
+    // ============================================================
+    // CREATED DATE
+    // ============================================================
+
+    private static string ReadExistingCreationDate(
+        string metadataPath)
     {
         if (!File.Exists(
                 metadataPath))
         {
-            return null;
+            return string.Empty;
         }
 
         try
@@ -635,14 +922,88 @@ public class VoxelMapManager :
                 );
 
             MapMetadata metadata =
-                JsonUtility.FromJson<
-                    MapMetadata>(json);
+                JsonUtility.FromJson<MapMetadata>(
+                    json
+                );
 
-            return metadata?.createdUtc;
+            if (metadata == null)
+            {
+                return string.Empty;
+            }
+
+            return metadata.createdUtc;
         }
         catch
         {
-            return null;
+            return string.Empty;
         }
+    }
+
+    // ============================================================
+    // FOLDER NAME
+    // ============================================================
+
+    private static string SanitizeFolderName(
+        string value)
+    {
+        if (string.IsNullOrWhiteSpace(
+                value))
+        {
+            return "TestMap";
+        }
+
+        char[] invalidCharacters =
+            Path.GetInvalidFileNameChars();
+
+        char[] characters =
+            value.Trim().ToCharArray();
+
+        for (int i = 0;
+             i < characters.Length;
+             i++)
+        {
+            char character =
+                characters[i];
+
+            bool invalid =
+                character == '/' ||
+                character == '\\';
+
+            if (!invalid)
+            {
+                for (int j = 0;
+                     j < invalidCharacters.Length;
+                     j++)
+                {
+                    if (character ==
+                        invalidCharacters[j])
+                    {
+                        invalid =
+                            true;
+
+                        break;
+                    }
+                }
+            }
+
+            if (invalid)
+            {
+                characters[i] =
+                    '_';
+            }
+        }
+
+        string result =
+            new string(
+                characters
+            ).Trim();
+
+        if (string.IsNullOrWhiteSpace(
+                result))
+        {
+            return "TestMap";
+        }
+
+        return result;
     }
 }

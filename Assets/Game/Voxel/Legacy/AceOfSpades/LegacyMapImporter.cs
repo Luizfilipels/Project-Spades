@@ -64,6 +64,17 @@ public class LegacyMapImporter : MonoBehaviour
         {
             ImportSelectedMap();
         }
+
+        /*
+         * NumPad 0:
+         * converte o mapa legado selecionado
+         * para o formato nativo do Project Spades.
+         */
+        if (Keyboard.current.numpad0Key
+            .wasPressedThisFrame)
+        {
+            ConvertSelectedMapToNative();
+        }
     }
 
     // ============================================================
@@ -109,7 +120,8 @@ public class LegacyMapImporter : MonoBehaviour
 
         selectedMapIndex++;
 
-        if (selectedMapIndex >= maps.Count)
+        if (selectedMapIndex >=
+            maps.Count)
         {
             selectedMapIndex = 0;
         }
@@ -136,7 +148,7 @@ public class LegacyMapImporter : MonoBehaviour
     }
 
     // ============================================================
-    // IMPORT
+    // IMPORT / TEST LEGACY MAP
     // ============================================================
 
     public bool ImportSelectedMap()
@@ -183,16 +195,19 @@ public class LegacyMapImporter : MonoBehaviour
                 selectedMap
             );
 
-            if (selectedMap.HasTxt)
-            {
-                TryReadPySnipTxt(
-                    selectedMap
-                );
-            }
-
+            /*
+             * Se existir UGC, tratamos o mapa
+             * como Jagex/Retail.
+             */
             if (selectedMap.HasUgc)
             {
                 TryReadJagexUgc(
+                    selectedMap
+                );
+            }
+            else if (selectedMap.HasTxt)
+            {
+                TryReadPySnipTxt(
                     selectedMap
                 );
             }
@@ -243,6 +258,108 @@ public class LegacyMapImporter : MonoBehaviour
                 "Erro ao importar \"" +
                 selectedMap.Name +
                 "\":\n" +
+                exception
+            );
+
+            return false;
+        }
+    }
+
+    // ============================================================
+    // CONVERT TO NATIVE FORMAT
+    // ============================================================
+
+    public bool ConvertSelectedMapToNative()
+    {
+        if (!EnsureMapsAvailable())
+        {
+            return false;
+        }
+
+        if (selectedMapIndex < 0 ||
+            selectedMapIndex >= maps.Count)
+        {
+            Debug.LogError(
+                "Índice de mapa inválido."
+            );
+
+            return false;
+        }
+
+        LegacyMapEntry selectedMap =
+            maps[selectedMapIndex];
+
+        if (selectedMap.HasUgc)
+        {
+            Debug.LogWarning(
+                "O mapa \"" +
+                selectedMap.Name +
+                "\" foi identificado como " +
+                "Jagex/Retail.\n" +
+                "A conversão UGC será implementada " +
+                "no próximo estágio."
+            );
+
+            return false;
+        }
+
+        if (!selectedMap.HasTxt)
+        {
+            Debug.LogWarning(
+                "O mapa \"" +
+                selectedMap.Name +
+                "\" não possui TXT PySnip.\n" +
+                "A conversão PySnip atual requer " +
+                "um par .vxl + .txt."
+            );
+
+            return false;
+        }
+
+        try
+        {
+            Debug.Log(
+                "================================\n" +
+                "CONVERTENDO PARA FORMATO NATIVO\n" +
+                "Mapa: " +
+                selectedMap.Name +
+                "\n" +
+                "================================"
+            );
+
+            Stopwatch stopwatch =
+                Stopwatch.StartNew();
+
+            string outputDirectory =
+                LegacyMapNativeConverter
+                    .ConvertPySnipMap(
+                        selectedMap
+                    );
+
+            stopwatch.Stop();
+
+            Debug.Log(
+                "Conversão concluída com sucesso.\n" +
+                "Destino:\n" +
+                outputDirectory +
+                "\n" +
+                "Arquivos:\n" +
+                "  terrain.vxm\n" +
+                "  map.json\n" +
+                "Tempo: " +
+                stopwatch.Elapsed.TotalSeconds
+                    .ToString("F2") +
+                "s"
+            );
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError(
+                "Erro ao converter \"" +
+                selectedMap.Name +
+                "\" para formato nativo:\n" +
                 exception
             );
 
@@ -720,49 +837,67 @@ public class LegacyMapImporter : MonoBehaviour
     private static void LogSidecars(
         LegacyMapEntry map)
     {
-        if (map.HasTxt)
-        {
-            Debug.Log(
-                "TXT/PySnip encontrado:\n" +
-                map.TxtPath
-            );
-        }
-
         if (map.HasUgc)
         {
+            Debug.Log(
+                "Formato identificado: " +
+                "Jagex/Retail"
+            );
+
             Debug.Log(
                 "UGC/Jagex encontrado:\n" +
                 map.UgcPath
             );
+
+            if (map.HasTxt)
+            {
+                Debug.Log(
+                    "TXT auxiliar encontrado:\n" +
+                    map.TxtPath
+                );
+            }
+
+            return;
         }
 
-        if (!map.HasTxt &&
-            !map.HasUgc)
+        if (map.HasTxt)
         {
             Debug.Log(
-                "Nenhum sidecar de " +
-                "metadados encontrado."
+                "Formato identificado: " +
+                "PySnip/PySpades"
             );
+
+            Debug.Log(
+                "TXT/PySnip encontrado:\n" +
+                map.TxtPath
+            );
+
+            return;
         }
+
+        Debug.Log(
+            "Formato identificado: " +
+            "VXL sem sidecar"
+        );
     }
 
     private static string GetSidecarDescription(
         LegacyMapEntry map)
     {
-        if (map.HasTxt &&
-            map.HasUgc)
+        if (map.HasUgc &&
+            map.HasTxt)
         {
-            return "(TXT + UGC)";
+            return "(Jagex UGC + TXT)";
         }
 
         if (map.HasUgc)
         {
-            return "(UGC)";
+            return "(Jagex UGC)";
         }
 
         if (map.HasTxt)
         {
-            return "(TXT)";
+            return "(PySnip TXT)";
         }
 
         return "(somente VXL)";
